@@ -156,6 +156,23 @@ test("the bed support curve prevents frame-by-frame mattress penetration", async
   }
 });
 
+test("dismount keeps mattress support until Todd is upright", async () => {
+  const navigation = await import(navigationPath);
+  const justPastBedEdge = [-2.4, navigation.BED_MOUNT_Y, -2.35] as const;
+
+  assert.equal(typeof navigation.shouldUseMattressSupport, "function");
+  assert.equal(
+    navigation.shouldUseMattressSupport(...justPastBedEdge, 0.2),
+    true,
+    "a rotated leg can still overlap the mattress after Todd's center leaves the bed",
+  );
+  assert.equal(
+    navigation.shouldUseMattressSupport(...justPastBedEdge, 0),
+    false,
+    "upright Todd can hand height control back to the route after clearing the bed",
+  );
+});
+
 test("the sleeping pose keeps Todd's rotated crown clear of the headboard", async () => {
   const navigation = await import(navigationPath);
   const crownLeftReachIncludingHeadBob = 1.7;

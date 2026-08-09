@@ -81,6 +81,18 @@ export function bedSupportsPoint(x: number, z: number) {
   );
 }
 
+export function shouldUseMattressSupport(
+  x: number,
+  y: number,
+  z: number,
+  rotationZ: number,
+) {
+  return (
+    Math.abs(rotationZ) > 0.001 ||
+    (bedSupportsPoint(x, z) && y > FLOOR_POSE_Y + 0.3)
+  );
+}
+
 function inflate(
   id: Collider["id"],
   centerX: number,

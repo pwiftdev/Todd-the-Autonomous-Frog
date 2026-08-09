@@ -13,8 +13,8 @@ import {
 import {
   ACTIVITY_POSES,
   FLOOR_POSE_Y,
-  bedSupportsPoint,
   buildRoomRoute,
+  shouldUseMattressSupport,
   sleepingSupportY,
   type ActivityPose,
   type RoomPoint,
@@ -238,10 +238,12 @@ function RoomTodd({ activity }: { activity: Activity }) {
       arrived && activity.id === "workout"
         ? Math.abs(Math.sin(clock.elapsedTime * 4.5)) * 0.28
         : 0;
-    const sleepingOnBed =
-      bedSupportsPoint(group.current.position.x, group.current.position.z) &&
-      (group.current.rotation.z > 0.001 ||
-        group.current.position.y > FLOOR_POSE_Y + 0.3);
+    const sleepingOnBed = shouldUseMattressSupport(
+      group.current.position.x,
+      group.current.position.y,
+      group.current.position.z,
+      group.current.rotation.z,
+    );
     if (sleepingOnBed) {
       group.current.position.y = sleepingSupportY(group.current.rotation.z);
     } else if (arrived) {
