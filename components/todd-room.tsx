@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Clock3, Radio, StepForward } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   FrogHead,
@@ -10,16 +10,23 @@ import {
   type BoxProps,
   type ToddActivity,
 } from "@/components/todd-voxel";
+import {
+  ACTIVITY_POSES,
+  FLOOR_POSE_Y,
+  bedSupportsPoint,
+  buildRoomRoute,
+  sleepingSupportY,
+  type ActivityPose,
+  type RoomPoint,
+} from "@/lib/room-navigation";
 
 type ActivityId =
   "reviewing" | "eating" | "workout" | "gardening" | "thinking" | "sleeping";
-type Activity = {
+type Activity = ActivityPose & {
   id: ActivityId;
   label: string;
   detail: string;
   duration: number;
-  position: [number, number, number];
-  rotation: number;
 };
 
 const activities: Activity[] = [
@@ -28,48 +35,42 @@ const activities: Activity[] = [
     label: "Reviewing suggestions",
     detail: "Todd is at the computer judging the internet.",
     duration: 14,
-    position: [3.7, 0.8, -1.9],
-    rotation: Math.PI,
+    ...ACTIVITY_POSES.reviewing,
   },
   {
     id: "thinking",
     label: "Thinking by the pond",
     detail: "Processing pressure. Forming an opinion.",
     duration: 9,
-    position: [0.4, 0.8, 0],
-    rotation: -0.25,
+    ...ACTIVITY_POSES.thinking,
   },
   {
     id: "gardening",
     label: "Upkeeping flowers",
     detail: "Autonomy includes remembering to water things.",
     duration: 10,
-    position: [4.35, 0.8, 2.25],
-    rotation: -1.1,
+    ...ACTIVITY_POSES.gardening,
   },
   {
     id: "eating",
     label: "Eating at his desk",
     detail: "A difficult decision requires a small meal.",
     duration: 10,
-    position: [-3.55, 0.8, 1.55],
-    rotation: 0.35,
+    ...ACTIVITY_POSES.eating,
   },
   {
     id: "workout",
     label: "Working out",
     detail: "Maintaining an unreasonable level of frog confidence.",
     duration: 11,
-    position: [0.3, 0.8, 2.55],
-    rotation: 0,
+    ...ACTIVITY_POSES.workout,
   },
   {
     id: "sleeping",
     label: "Sleeping",
     detail: "The suggestion queue will still be there tomorrow.",
     duration: 13,
-    position: [-3.9, 1.25, -2.35],
-    rotation: 0.15,
+    ...ACTIVITY_POSES.sleeping,
   },
 ];
 
@@ -202,27 +203,54 @@ function modelActivity(activity: ActivityId): ToddActivity {
 
 function RoomTodd({ activity }: { activity: Activity }) {
   const group = useRef<THREE.Group>(null);
-  const target = useMemo(
-    () => new THREE.Vector3(...activity.position),
-    [activity.position],
-  );
+  const route = useRef<THREE.Vector3[]>([]);
+
+  useEffect(() => {
+    const current = group.current;
+    if (!current) return;
+    const start: RoomPoint = [
+      current.position.x,
+      current.position.y,
+      current.position.z,
+    ];
+    route.current = buildRoomRoute(start, activity).map(
+      (point) => new THREE.Vector3(...point),
+    );
+  }, [activity]);
+
   useFrame(({ clock }, delta) => {
     if (!group.current) return;
-    group.current.position.lerp(target, 1 - Math.exp(-delta * 1.45));
-    const bounce =
-      activity.id === "workout"
-        ? Math.abs(Math.sin(clock.elapsedTime * 4.5)) * 0.28
-        : 0;
-    group.current.position.y = THREE.MathUtils.lerp(
-      group.current.position.y,
-      target.y + bounce,
-      0.18,
-    );
+    const next = route.current[0];
+    if (next) {
+      group.current.position.lerp(next, 1 - Math.exp(-delta * 2.35));
+      if (group.current.position.distanceToSquared(next) < 0.003) {
+        group.current.position.copy(next);
+        route.current.shift();
+      }
+    }
+    const arrived = route.current.length === 0;
     group.current.rotation.z = THREE.MathUtils.lerp(
       group.current.rotation.z,
-      activity.id === "sleeping" ? Math.PI / 2 : 0,
+      arrived && activity.id === "sleeping" ? Math.PI / 2 : 0,
       0.06,
     );
+    const bounce =
+      arrived && activity.id === "workout"
+        ? Math.abs(Math.sin(clock.elapsedTime * 4.5)) * 0.28
+        : 0;
+    const sleepingOnBed =
+      bedSupportsPoint(group.current.position.x, group.current.position.z) &&
+      (group.current.rotation.z > 0.001 ||
+        group.current.position.y > FLOOR_POSE_Y + 0.3);
+    if (sleepingOnBed) {
+      group.current.position.y = sleepingSupportY(group.current.rotation.z);
+    } else if (arrived) {
+      group.current.position.y = THREE.MathUtils.lerp(
+        group.current.position.y,
+        activity.position[1] + bounce,
+        0.18,
+      );
+    }
     group.current.rotation.y = THREE.MathUtils.lerp(
       group.current.rotation.y,
       activity.rotation,
@@ -230,7 +258,7 @@ function RoomTodd({ activity }: { activity: Activity }) {
     );
   });
   return (
-    <group ref={group} position={[0.4, 0.8, 0]} scale={0.42}>
+    <group ref={group} position={[0.4, FLOOR_POSE_Y, 0]} scale={0.42}>
       <VoxelBox
         position={[0, -2.15, 0]}
         scale={[2.4, 1.7, 1.8]}
