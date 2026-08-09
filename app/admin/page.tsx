@@ -3,7 +3,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Send,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -12,7 +11,6 @@ import {
   rollbackConfig,
   toggleAutonomy,
   triggerDecision,
-  triggerSocial,
 } from "@/app/actions";
 import { isAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -62,7 +60,24 @@ export default async function AdminPage({
         take: 12,
         orderBy: { createdAt: "desc" },
       }),
-      prisma.aiRun.findMany({ take: 8, orderBy: { createdAt: "desc" } }),
+      prisma.decisionRun.findMany({
+        take: 8,
+        orderBy: { createdAt: "desc" },
+        include: {
+          attempts: {
+            select: {
+              attemptNumber: true,
+              status: true,
+              provider: true,
+              model: true,
+              inputTokens: true,
+              outputTokens: true,
+              latencyMs: true,
+              error: true,
+            },
+          },
+        },
+      }),
       prisma.auditLog.findMany({
         where: { success: false },
         take: 8,
@@ -76,8 +91,7 @@ export default async function AdminPage({
       action: toggleAutonomy,
       icon: state.autonomyPaused ? Play : Pause,
     },
-    { label: "Run decision cycle", action: triggerDecision, icon: Sparkles },
-    { label: "Run social cycle", action: triggerSocial, icon: Send },
+    { label: "Queue decision", action: triggerDecision, icon: Sparkles },
     { label: "Rollback config", action: rollbackConfig, icon: RotateCcw },
   ];
   return (
@@ -110,7 +124,7 @@ export default async function AdminPage({
                 currentStatus: state.currentStatus,
                 activeConfigVersion: config.version,
                 provider: process.env.AI_PROVIDER ?? "mock",
-                socialProvider: process.env.SOCIAL_PROVIDER ?? "mock",
+                runtimeMode: process.env.TODD_RUNTIME_MODE ?? "unconfigured",
               },
               null,
               2,
@@ -139,19 +153,22 @@ export default async function AdminPage({
             />
           ))}
         </AdminPanel>
-        <AdminPanel title="Recent AI requests / responses">
+        <AdminPanel title="Recent durable decision runs">
           {runs.length ? (
             runs.map((item) => (
               <details key={item.id} className="border-t border-black/10 py-3">
                 <summary className="eyebrow cursor-pointer">
-                  {item.operation} · {item.error ? "failed" : "complete"}
+                  {item.status.toLowerCase()} · attempt {item.attemptCount}/
+                  {item.maxAttempts}
                 </summary>
                 <pre className="mt-3 max-h-64 overflow-auto text-[11px]">
                   {JSON.stringify(
                     {
-                      request: item.request,
-                      response: item.response,
-                      error: item.error,
+                      runId: item.id,
+                      suggestionId: item.suggestionId,
+                      contextHash: item.contextHash,
+                      lastError: item.lastErrorMessage,
+                      attempts: item.attempts,
                     },
                     null,
                     2,
@@ -178,12 +195,12 @@ export default async function AdminPage({
         </AdminPanel>
         <AdminPanel title="Scheduler">
           <p className="text-sm leading-6 text-[#687069]">
-            The protected cron endpoint checks the pending queue every five
-            minutes. All production AI and social credentials remain
+            One protected endpoint queues work every five minutes. A separate
+            leased worker drains durable runs. Provider credentials remain
             server-side.
           </p>
           <div className="mt-5 rounded-xl bg-[#172019] p-4 font-mono text-xs text-[#dce9d4]">
-            POST /api/cron/decision
+            GET /api/cron/decision · GET /api/cron/worker
           </div>
         </AdminPanel>
       </div>

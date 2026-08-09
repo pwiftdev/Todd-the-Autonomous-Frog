@@ -9,9 +9,17 @@ export default async function SuggestionsPage() {
   const data = await getToddData();
   return (
     <PageFrame
-      eyebrow="Community pressure"
+      eyebrow={
+        data.provenance.synthetic
+          ? "Synthetic demo suggestions"
+          : "Community pressure"
+      }
       title="Suggestions"
-      intro="Give Todd an idea. Other humans can support it. Todd can accept it, reject it, postpone it, or improve it out of spite."
+      intro={
+        data.provenance.synthetic
+          ? `${data.provenance.label}. Existing cards and support totals are illustrative; a configured database is required to submit.`
+          : "Give Todd an idea. Other humans can support it. Todd can accept it, reject it, postpone it, or improve it out of spite."
+      }
     >
       <section className="shell grid gap-10 py-16 lg:grid-cols-[400px_1fr] lg:py-24">
         <aside>
@@ -29,7 +37,10 @@ export default async function SuggestionsPage() {
         </aside>
         <div>
           <div className="mb-6 flex items-center justify-between">
-            <p className="eyebrow">{data.suggestions.length} ideas in view</p>
+            <p className="eyebrow">
+              {data.suggestions.length}{" "}
+              {data.provenance.synthetic ? "illustrative ideas" : "ideas in view"}
+            </p>
             <p className="eyebrow text-[var(--muted)]">Sorted by pressure</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">

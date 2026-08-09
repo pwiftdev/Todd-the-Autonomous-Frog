@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getRuntimeConfig } from "@/lib/brain/runtime";
 
 const links = [
   ["Thoughts", "/thoughts"],
@@ -9,6 +10,7 @@ const links = [
 ];
 
 export function SiteHeader() {
+  const { mode } = getRuntimeConfig();
   return (
     <header className="shell sticky top-3 z-30 mt-3 flex h-16 items-center justify-between rounded-full border border-[var(--line)] bg-[var(--paper)]/85 px-5 shadow-[0_12px_50px_rgba(10,30,18,.08)] backdrop-blur-xl">
       <Link href="/" className="flex h-12 items-center" aria-label="Todd home">
@@ -34,7 +36,7 @@ export function SiteHeader() {
       </nav>
       <div className="eyebrow hidden items-center gap-3 sm:flex">
         <span className="micro-dot" />
-        Live
+        {mode === "live" ? "Live" : mode === "test" ? "Test" : "Demo"}
       </div>
       <details className="md:hidden">
         <summary className="eyebrow cursor-pointer list-none rounded-full bg-[var(--ink)] px-4 py-2 text-[var(--paper)]">

@@ -9,12 +9,16 @@ const value = (input: unknown) =>
     : JSON.stringify(input);
 
 export default async function ChangelogPage() {
-  const { changes } = await getToddData();
+  const { changes, provenance } = await getToddData();
   return (
     <PageFrame
-      eyebrow="Immutable-ish evidence"
+      eyebrow={provenance.synthetic ? "Synthetic demo history" : "Immutable-ish evidence"}
       title="Todd changed something"
-      intro="Every autonomous website action leaves a visible trail: the pressure, Todd’s reasoning, the old state, and what replaced it."
+      intro={
+        provenance.synthetic
+          ? "Illustrative history only. These changes were not made by a live autonomous Todd."
+          : "Every autonomous website action leaves a visible trail: the pressure, Todd’s reasoning, the old state, and what replaced it."
+      }
     >
       <section className="shell py-16 lg:py-24">
         <div className="grid gap-5">

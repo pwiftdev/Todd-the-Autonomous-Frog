@@ -37,6 +37,11 @@ export type PublicSuggestion = {
 };
 
 export type ToddData = {
+  provenance: {
+    mode: "demo" | "live" | "test";
+    synthetic: boolean;
+    label: string;
+  };
   config: SiteConfigData;
   suggestions: PublicSuggestion[];
   thoughts: Array<{

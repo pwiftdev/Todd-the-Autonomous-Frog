@@ -1,9 +1,48 @@
 import { prisma } from "@/lib/prisma";
 import { defaultToddData } from "@/lib/default-data";
+import { getRuntimeConfig } from "@/lib/brain/runtime";
 import type { SiteConfigData, ToddData } from "@/lib/types";
 
+export class ToddDataUnavailableError extends Error {
+  constructor(options?: ErrorOptions) {
+    super("Todd's live data is unavailable.", options);
+    this.name = "ToddDataUnavailableError";
+  }
+}
+
+function syntheticToddData(mode: "demo" | "test"): ToddData {
+  return {
+    ...defaultToddData,
+    provenance: {
+      mode,
+      synthetic: true,
+      label: "Demo data — not live Todd activity",
+    },
+  };
+}
+
+export function dataProvenanceForMode(
+  mode: "demo" | "live" | "test",
+): ToddData["provenance"] {
+  if (mode === "live") {
+    return {
+      mode,
+      synthetic: false,
+      label: "Live PostgreSQL data",
+    };
+  }
+  return {
+    mode,
+    synthetic: true,
+    label: "Demo data — not live Todd activity",
+  };
+}
+
 export async function getToddData(): Promise<ToddData> {
-  if (!process.env.DATABASE_URL) return defaultToddData;
+  const runtime = getRuntimeConfig();
+  if (!runtime.databaseUrl) {
+    return syntheticToddData(runtime.mode as "demo" | "test");
+  }
   try {
     const [
       config,
@@ -37,12 +76,15 @@ export async function getToddData(): Promise<ToddData> {
       prisma.decision.count(),
     ]);
 
-    if (!config || !personality || !state) return defaultToddData;
+    if (!config || !personality || !state) {
+      throw new ToddDataUnavailableError();
+    }
     const accepted = suggestions.filter((item) =>
       ["ACCEPTED", "MODIFIED", "IMPLEMENTED"].includes(item.status),
     ).length;
 
     return {
+      provenance: dataProvenanceForMode(runtime.mode),
       config: {
         ...config,
         enabledSections: config.enabledSections as string[],
@@ -78,7 +120,11 @@ export async function getToddData(): Promise<ToddData> {
       },
       autonomyPaused: state.autonomyPaused,
     };
-  } catch {
-    return defaultToddData;
+  } catch (error) {
+    if (runtime.mode === "demo" || runtime.mode === "test") {
+      return syntheticToddData(runtime.mode);
+    }
+    if (error instanceof ToddDataUnavailableError) throw error;
+    throw new ToddDataUnavailableError({ cause: error });
   }
 }

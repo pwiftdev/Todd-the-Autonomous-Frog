@@ -3,6 +3,11 @@ import type { ToddData } from "@/lib/types";
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 
 export const defaultToddData: ToddData = {
+  provenance: {
+    mode: "demo",
+    synthetic: true,
+    label: "Demo data — not live Todd activity",
+  },
   config: {
     theme: "classic_swamp",
     accent: "lime",

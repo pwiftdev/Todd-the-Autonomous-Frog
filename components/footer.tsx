@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { getRuntimeConfig } from "@/lib/brain/runtime";
 
 export function Footer() {
+  const { mode } = getRuntimeConfig();
   return (
     <footer className="m-2 overflow-hidden rounded-[2rem] bg-[#08150f] py-14 text-[#eff5d9] md:m-4 md:rounded-[3rem] md:py-20">
       <div className="shell">
@@ -42,7 +44,13 @@ export function Footer() {
         </div>
         <div className="eyebrow flex flex-wrap justify-between gap-4 pt-6 text-[#718274]">
           <p>People suggest. Todd decides.</p>
-          <p>Autonomy online · Pond stable</p>
+          <p>
+            {mode === "live"
+              ? "Autonomy online · Live persistence"
+              : mode === "test"
+                ? "Test runtime · Isolated persistence"
+                : "Demo runtime · Not production"}
+          </p>
         </div>
       </div>
     </footer>

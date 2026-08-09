@@ -1,28 +1,48 @@
-import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
-import { runDecisionCycle } from "@/lib/autonomy";
+import { NextRequest, NextResponse } from "next/server";
 
-function authorized(request: Request) {
-  const expected = process.env.CRON_SECRET;
-  const provided =
-    request.headers.get("authorization")?.replace("Bearer ", "") ?? "";
-  if (!expected) return process.env.NODE_ENV === "development";
-  const left = Buffer.from(expected);
-  const right = Buffer.from(provided);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
+import { enqueueDecisionCycle } from "@/lib/autonomy";
+import { cronIdempotencyKey } from "@/lib/brain/scheduler";
+import { cronAuthorization } from "@/lib/security/request";
 
-export async function GET(request: Request) {
-  if (!authorized(request))
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    return NextResponse.json(await runDecisionCycle());
-  } catch (error) {
+export const dynamic = "force-dynamic";
+
+async function handler(request: NextRequest) {
+  const auth = cronAuthorization(
+    process.env.CRON_SECRET,
+    request.headers.get("authorization"),
+  );
+  if (auth === "misconfigured") {
     return NextResponse.json(
+      { ok: false, error: "Cron authentication is not configured." },
+      { status: 503 },
+    );
+  }
+  if (auth === "unauthorized") {
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized." },
+      { status: 401 },
+    );
+  }
+  try {
+    const result = await enqueueDecisionCycle({
+      idempotencyKey: cronIdempotencyKey(),
+      trigger: "CRON",
+    });
+    return NextResponse.json(
+      { ok: true, ...result },
       {
-        error: error instanceof Error ? error.message : "Decision cycle failed",
+        status: ["queued", "running", "retrying"].includes(result.status)
+          ? 202
+          : 200,
       },
-      { status: 500 },
+    );
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Decision queue is unavailable." },
+      { status: 503 },
     );
   }
 }
+
+export const GET = handler;
+export const POST = handler;

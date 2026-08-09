@@ -32,6 +32,35 @@ enum DecisionKind {
   MODIFY
 }
 
+enum BrainRunStatus {
+  QUEUED
+  RUNNING
+  RETRYING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum BrainRunTrigger {
+  CRON
+  ADMIN
+}
+
+enum OutboxStatus {
+  PENDING
+  RUNNING
+  DELIVERED
+  RETRYING
+  FAILED
+  CANCELLED
+}
+
+enum ToddActivityKind {
+  REVIEWING
+  THINKING
+  RESTING
+}
+
 model ToddState {
   id             String   @id @default("todd")
   createdAt      DateTime @default(now())
@@ -55,13 +84,16 @@ model Personality {
 }
 
 model Memory {
-  id         String   @id @default(cuid())
-  type       String
-  content    String
-  importance Int      @default(50)
-  createdAt  DateTime @default(now())
+  id               String   @id @default(cuid())
+  type             String
+  content          String
+  importance       Int      @default(50)
+  sourceRunId      String?
+  sourceDecisionId String?
+  createdAt        DateTime @default(now())
 
   @@index([type, createdAt])
+  @@index([sourceRunId])
 }
 
 model Suggestion {
@@ -76,6 +108,7 @@ model Suggestion {
   supports     SuggestionSupport[]
   decisions    Decision[]
   actions      Action[]
+  decisionRuns DecisionRun[]
 
   @@index([status, createdAt])
 }
@@ -98,7 +131,9 @@ model Decision {
   reasoningPublic String
   rawResponse     Json
   createdAt       DateTime     @default(now())
+  decisionRunId   String?      @unique
   suggestion      Suggestion   @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  decisionRun     DecisionRun? @relation(fields: [decisionRunId], references: [id], onDelete: SetNull)
   actions         Action[]
 
   @@index([createdAt])
@@ -123,6 +158,7 @@ model Action {
 
 model SiteConfig {
   id              String   @id @default(cuid())
+  parentConfigId  String?
   version         Int      @unique
   isActive        Boolean  @default(false)
   theme           String
@@ -136,8 +172,11 @@ model SiteConfig {
   frogAccessory   String
   enabledSections Json
   createdAt       DateTime @default(now())
+  parentConfig    SiteConfig?  @relation("SiteConfigHistory", fields: [parentConfigId], references: [id], onDelete: SetNull)
+  childConfigs    SiteConfig[] @relation("SiteConfigHistory")
 
   @@index([isActive])
+  @@index([parentConfigId])
 }
 
 model Thought {
@@ -188,12 +227,107 @@ model AuditLog {
 }
 
 model AiRun {
-  id        String   @id @default(cuid())
-  operation String
-  request   Json
-  response  Json?
-  error     String?
-  createdAt DateTime @default(now())
+  id            String       @id @default(cuid())
+  decisionRunId String?
+  attemptNumber Int          @default(1)
+  operation     String
+  status        String       @default("RUNNING")
+  provider      String       @default("unknown")
+  model         String?
+  promptHash    String?
+  request       Json
+  response      Json?
+  requestId     String?
+  responseId    String?
+  inputTokens   Int?
+  outputTokens  Int?
+  costKnown     Boolean      @default(false)
+  costMicros    BigInt?
+  latencyMs     Int?
+  error         String?
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+  decisionRun   DecisionRun? @relation(fields: [decisionRunId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
+  @@unique([decisionRunId, attemptNumber])
+}
+
+model DecisionRun {
+  id               String          @id @default(cuid())
+  idempotencyKey   String          @unique
+  trigger          BrainRunTrigger
+  status           BrainRunStatus  @default(QUEUED)
+  suggestionId     String
+  workerId         String?
+  leaseToken       String?
+  leaseExpiresAt   DateTime?
+  attemptCount     Int             @default(0)
+  maxAttempts      Int             @default(3)
+  nextAttemptAt    DateTime        @default(now())
+  contextSnapshot  Json?
+  contextHash      String?
+  promptHash       String?
+  lastErrorCode    String?
+  lastErrorMessage String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now()) @updatedAt
+  suggestion       Suggestion      @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  decision         Decision?
+  attempts         AiRun[]
+  activity         ToddActivity?
+  outboxEvents     OutboxEvent[]
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([leaseExpiresAt])
+  @@index([suggestionId, createdAt])
+}
+
+model ToddActivity {
+  id            String           @id @default(cuid())
+  decisionRunId String?          @unique
+  type          ToddActivityKind
+  location      String           @default("backend")
+  reason        String
+  isCurrent     Boolean          @default(true)
+  startedAt     DateTime         @default(now())
+  endsAt        DateTime
+  createdAt     DateTime         @default(now())
+  decisionRun   DecisionRun?     @relation(fields: [decisionRunId], references: [id], onDelete: SetNull)
+
+  @@index([isCurrent, endsAt])
+}
+
+model OutboxEvent {
+  id             String       @id @default(cuid())
+  decisionRunId  String?
+  type           String
+  dedupeKey      String       @unique
+  payload        Json
+  status         OutboxStatus @default(PENDING)
+  workerId       String?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  attemptCount   Int          @default(0)
+  maxAttempts    Int          @default(5)
+  nextAttemptAt  DateTime     @default(now())
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+  decisionRun    DecisionRun? @relation(fields: [decisionRunId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([leaseExpiresAt])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([resetAt])
 }

@@ -8,9 +8,15 @@ export default async function ProfilePage() {
   const data = await getToddData();
   return (
     <PageFrame
-      eyebrow="Creature dossier"
+      eyebrow={
+        data.provenance.synthetic ? "Synthetic demo profile" : "Creature dossier"
+      }
       title="Todd"
-      intro="Persistent personality. Selective memory. Firm opinions about typography. All numbers are public because Todd believes mystery works best with evidence."
+      intro={
+        data.provenance.synthetic
+          ? `${data.provenance.label}. The traits and totals below are illustrative, not observed live history.`
+          : "Persistent personality. Selective memory. Firm opinions about typography. All numbers are public because Todd believes mystery works best with evidence."
+      }
     >
       <section className="shell grid gap-8 py-16 lg:grid-cols-[.8fr_1.2fr] lg:py-24">
         <div className="swamp-glow swamp-grid relative min-h-[580px] overflow-hidden rounded-[2rem] text-[#eff5d9]">
@@ -26,12 +32,16 @@ export default async function ProfilePage() {
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="card interactive-card p-5">
-              <p className="eyebrow text-[var(--muted)]">Age</p>
-              <p className="display mt-4 text-4xl uppercase">14 days</p>
+              <p className="eyebrow text-[var(--muted)]">Runtime</p>
+              <p className="display mt-4 text-4xl uppercase">
+                {data.provenance.synthetic ? "Demo fixture" : "Live"}
+              </p>
             </div>
             <div className="card interactive-card p-5">
-              <p className="eyebrow text-[var(--muted)]">Created</p>
-              <p className="display mt-4 text-4xl uppercase">Jul 26</p>
+              <p className="eyebrow text-[var(--muted)]">History</p>
+              <p className="display mt-4 text-4xl uppercase">
+                {data.provenance.synthetic ? "Illustrative" : "Persisted"}
+              </p>
             </div>
           </div>
           <div className="card p-7 shadow-[0_20px_60px_rgba(10,30,18,.07)]">
@@ -54,12 +64,16 @@ export default async function ProfilePage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="card p-6">
-              <p className="eyebrow text-[var(--muted)]">Favorite thing</p>
+              <p className="eyebrow text-[var(--muted)]">
+                {data.provenance.synthetic ? "Illustrative favorite" : "Favorite thing"}
+              </p>
               <p className="display mt-6 text-4xl uppercase">Pond</p>
             </div>
             <div className="card p-6">
               <p className="eyebrow text-[var(--muted)]">
-                Least favorite thing
+                {data.provenance.synthetic
+                  ? "Illustrative least favorite"
+                  : "Least favorite thing"}
               </p>
               <p className="display mt-6 text-3xl uppercase">
                 Being told what to do
@@ -75,7 +89,9 @@ export default async function ProfilePage() {
             }).map(([label, value]) => (
               <div key={label} className="card interactive-card p-5">
                 <p className="display text-4xl">{value}</p>
-                <p className="eyebrow mt-3 text-[var(--muted)]">{label}</p>
+                <p className="eyebrow mt-3 text-[var(--muted)]">
+                  {data.provenance.synthetic ? `Demo ${label}` : label}
+                </p>
               </div>
             ))}
           </div>

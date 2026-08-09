@@ -5,10 +5,10 @@ import { getToddData } from "@/lib/data";
 export const dynamic = "force-dynamic";
 
 export default async function ThoughtsPage() {
-  const { thoughts } = await getToddData();
+  const { thoughts, provenance } = await getToddData();
   return (
     <PageFrame
-      eyebrow="Live cognition"
+      eyebrow={provenance.synthetic ? "Synthetic demo cognition" : "Live cognition"}
       title="Todd’s thoughts"
       intro="A public stream generated around decisions, observations, changes and moments Todd considers worth interrupting the internet for."
     >
@@ -17,7 +17,7 @@ export default async function ThoughtsPage() {
           <div className="mb-10 flex items-center justify-between rounded-full border rule bg-[var(--surface)] px-5 py-3 shadow-sm">
             <span className="eyebrow flex items-center gap-2">
               <Circle size={9} fill="var(--lime)" />
-              Brain online
+              {provenance.synthetic ? provenance.label : "Brain online"}
             </span>
             <Brain size={18} />
           </div>

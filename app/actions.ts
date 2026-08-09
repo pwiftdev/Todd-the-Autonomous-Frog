@@ -1,75 +1,79 @@
 "use server";
 
-import { createHash } from "node:crypto";
-import { cookies, headers } from "next/headers";
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+
 import {
-  runDecisionCycle,
-  runSocialCycle,
+  enqueueDecisionCycle,
   rollbackLatestConfig,
 } from "@/lib/autonomy";
-import { prisma } from "@/lib/prisma";
-import { assertRateLimit } from "@/lib/rate-limit";
-import { suggestionSchema } from "@/lib/validation";
 import {
   adminSessionValue,
   requireAdmin,
   verifyAdminSecret,
 } from "@/lib/admin-auth";
+import { getRuntimeConfig } from "@/lib/brain/runtime";
+import { prisma } from "@/lib/prisma";
+import { consumeSharedRateLimit } from "@/lib/security/rate-limit";
+import {
+  clientFingerprint,
+  isSameOriginRequest,
+} from "@/lib/security/request";
+import { submitVisitorSuggestion } from "@/lib/suggestions";
 
 export type ActionState = { ok: boolean; message: string };
+
+async function mutationIdentity() {
+  const requestHeaders = await headers();
+  const runtime = getRuntimeConfig();
+  if (
+    !isSameOriginRequest({
+      origin: requestHeaders.get("origin"),
+      expectedOrigin: runtime.publicOrigin,
+    })
+  ) {
+    throw new Error("Cross-origin mutation rejected.");
+  }
+  return clientFingerprint(
+    requestHeaders.get(runtime.clientIpHeader),
+    runtime.fingerprintSecret,
+  );
+}
 
 export async function submitSuggestion(
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   try {
-    const headerStore = await headers();
-    const fingerprint = createHash("sha256")
-      .update(
-        headerStore.get("x-forwarded-for") ??
-          headerStore.get("user-agent") ??
-          "unknown",
-      )
-      .digest("hex");
-    assertRateLimit(fingerprint);
-    const parsed = suggestionSchema.safeParse({
+    const fingerprint = await mutationIdentity();
+    const result = await submitVisitorSuggestion(prisma, {
+      fingerprint,
       text: formData.get("text"),
       category: formData.get("category"),
       displayName: formData.get("displayName"),
     });
-    if (!parsed.success) {
-      return {
-        ok: false,
-        message:
-          parsed.error.issues[0]?.message ?? "Todd rejected the wording.",
-      };
+    if (result.ok) {
+      revalidatePath("/");
+      revalidatePath("/suggestions");
     }
-    await prisma.suggestion.create({ data: parsed.data });
-    revalidatePath("/");
-    revalidatePath("/suggestions");
-    return { ok: true, message: "Submitted. Todd owes you nothing." };
-  } catch (error) {
-    const rateLimited =
-      error instanceof Error &&
-      error.message.startsWith("Todd has heard enough");
-    return {
-      ok: false,
-      message: rateLimited ? error.message : "Todd refused the paperwork.",
-    };
+    return result;
+  } catch {
+    return { ok: false, message: "Todd's suggestion desk is unavailable." };
   }
 }
 
 export async function supportSuggestion(id: string) {
-  const headerStore = await headers();
-  const fingerprint = createHash("sha256")
-    .update(
-      headerStore.get("x-forwarded-for") ??
-        headerStore.get("user-agent") ??
-        "unknown",
-    )
-    .digest("hex");
+  const fingerprint = await mutationIdentity();
+  if (!id || id.length > 64) return;
+  const rate = await consumeSharedRateLimit(prisma, {
+    key: `support:${fingerprint}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!rate.allowed) return;
   try {
     await prisma.$transaction(async (tx) => {
       await tx.suggestionSupport.create({
@@ -80,23 +84,26 @@ export async function supportSuggestion(id: string) {
         data: { supportCount: { increment: 1 } },
       });
     });
-  } catch {}
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
+      throw error;
+    }
+  }
   revalidatePath("/");
   revalidatePath("/suggestions");
 }
 
 export async function adminLogin(formData: FormData) {
+  const fingerprint = await mutationIdentity();
+  const rate = await consumeSharedRateLimit(prisma, {
+    key: `admin-login:${fingerprint}`,
+    limit: 8,
+    windowMs: 15 * 60 * 1_000,
+  });
+  if (!rate.allowed) redirect("/admin?error=rate");
+
   const submitted = String(formData.get("secret") ?? "");
   const secret = process.env.ADMIN_SECRET;
-  const headerStore = await headers();
-  const fingerprint = createHash("sha256")
-    .update(headerStore.get("x-forwarded-for") ?? "unknown")
-    .digest("hex");
-  try {
-    assertRateLimit(`admin:${fingerprint}`, 8, 15 * 60 * 1000);
-  } catch {
-    redirect("/admin?error=rate");
-  }
   if (!secret || !verifyAdminSecret(submitted)) redirect("/admin?error=1");
   (await cookies()).set("todd_admin", adminSessionValue(secret), {
     httpOnly: true,
@@ -109,6 +116,7 @@ export async function adminLogin(formData: FormData) {
 }
 
 export async function toggleAutonomy() {
+  await mutationIdentity();
   await requireAdmin();
   const state = await prisma.toddState.findUniqueOrThrow({
     where: { id: "todd" },
@@ -121,18 +129,17 @@ export async function toggleAutonomy() {
 }
 
 export async function triggerDecision() {
+  await mutationIdentity();
   await requireAdmin();
-  await runDecisionCycle();
-  revalidatePath("/", "layout");
-}
-
-export async function triggerSocial() {
-  await requireAdmin();
-  await runSocialCycle();
-  revalidatePath("/", "layout");
+  await enqueueDecisionCycle({
+    idempotencyKey: `admin:decision:${randomUUID()}`,
+    trigger: "ADMIN",
+  });
+  revalidatePath("/admin");
 }
 
 export async function rollbackConfig() {
+  await mutationIdentity();
   await requireAdmin();
   await rollbackLatestConfig();
   revalidatePath("/", "layout");

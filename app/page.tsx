@@ -29,7 +29,9 @@ export default async function Home() {
           <div className="relative z-10 pt-6 lg:pt-0">
             <p className="eyebrow mb-8 flex items-center gap-3 text-[var(--lime)]">
               <span className="micro-dot" />
-              {config.announcement}
+              {data.provenance.synthetic
+                ? data.provenance.label
+                : config.announcement}
             </p>
             <h1 className="display text-[clamp(6.5rem,16vw,13rem)] leading-[.68] text-[var(--lime)]">
               {config.heroTitle}
@@ -64,7 +66,11 @@ export default async function Home() {
             />
             <div className="glass-dark absolute bottom-5 left-0 max-w-[330px] rounded-2xl p-5 lg:left-3">
               <div className="flex items-center justify-between">
-                <p className="eyebrow text-[#9eafa0]">Live from Todd’s brain</p>
+                <p className="eyebrow text-[#9eafa0]">
+                  {data.provenance.synthetic
+                    ? "Synthetic demonstration"
+                    : "Live from Todd’s brain"}
+                </p>
                 <span className="micro-dot" />
               </div>
               <div className="mt-4 flex items-end justify-between gap-4">
@@ -140,7 +146,11 @@ export default async function Home() {
       <section className="bg-[var(--deep)] py-24 text-[#eff5d9]">
         <div className="shell">
           <SectionHeading
-            eyebrow="03 / Live cognition"
+            eyebrow={
+              data.provenance.synthetic
+                ? "03 / Demonstration cognition"
+                : "03 / Live cognition"
+            }
             title="Todd’s thoughts"
             note="Thoughts appear after meaningful events. Todd does not post inspirational filler."
           />
@@ -180,9 +190,21 @@ export default async function Home() {
 
       <section className="shell py-24">
         <SectionHeading
-          eyebrow="04 / Community pressure"
-          title="Ideas currently in the pond"
-          note="Support makes a suggestion louder. It never makes it law."
+          eyebrow={
+            data.provenance.synthetic
+              ? "04 / Demonstration pressure"
+              : "04 / Community pressure"
+          }
+          title={
+            data.provenance.synthetic
+              ? "Illustrative ideas in the pond"
+              : "Ideas currently in the pond"
+          }
+          note={
+            data.provenance.synthetic
+              ? "These sample suggestions and support totals are not live activity."
+              : "Support makes a suggestion louder. It never makes it law."
+          }
         />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {data.suggestions.slice(0, 3).map((suggestion, index) => (
@@ -219,9 +241,21 @@ export default async function Home() {
       <section className="border-y rule py-24">
         <div className="shell">
           <SectionHeading
-            eyebrow="06 / Public record"
-            title="Todd changed something"
-            note="Safe changes are validated, versioned, reversible and explained in public."
+            eyebrow={
+              data.provenance.synthetic
+                ? "06 / Demo public record"
+                : "06 / Public record"
+            }
+            title={
+              data.provenance.synthetic
+                ? "Illustrative changes"
+                : "Todd changed something"
+            }
+            note={
+              data.provenance.synthetic
+                ? "These sample changes were not made by a live autonomous Todd."
+                : "Safe changes are validated, versioned, reversible and explained in public."
+            }
           />
           <div className="divide-y rule border-y rule">
             {data.changes.slice(0, 4).map((change, index) => (
@@ -258,9 +292,21 @@ export default async function Home() {
 
       <section className="shell py-24">
         <SectionHeading
-          eyebrow="07 / From the timeline"
-          title="Todd, publicly"
-          note="Important decisions may become posts. The mock provider keeps local development credential-free."
+          eyebrow={
+            data.provenance.synthetic
+              ? "07 / Demo timeline"
+              : "07 / From the timeline"
+          }
+          title={
+            data.provenance.synthetic
+              ? "Illustrative public posts"
+              : "Todd, publicly"
+          }
+          note={
+            data.provenance.synthetic
+              ? "These sample posts and dates were not published by a live Todd."
+              : "Approved public-post intent is recorded durably; external social delivery remains disabled."
+          }
         />
         <div className="grid gap-4 md:grid-cols-2">
           {data.socialPosts.slice(0, 2).map((post) => (
@@ -290,8 +336,16 @@ export default async function Home() {
 
       <section className="shell pb-24">
         <SectionHeading
-          eyebrow="08 / Evidence of life"
-          title="Fourteen days in the swamp"
+          eyebrow={
+            data.provenance.synthetic
+              ? "08 / Demo sample metrics"
+              : "08 / Evidence of life"
+          }
+          title={
+            data.provenance.synthetic
+              ? "Illustrative history"
+              : "Persisted life in the swamp"
+          }
         />
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border rule bg-[var(--line)] lg:grid-cols-5">
           {Object.entries({
@@ -306,7 +360,9 @@ export default async function Home() {
               className="bg-[var(--paper)] p-6 last:col-span-2 lg:last:col-span-1"
             >
               <p className="display text-5xl md:text-6xl">{value}</p>
-              <p className="eyebrow mt-4 text-[var(--muted)]">{label}</p>
+              <p className="eyebrow mt-4 text-[var(--muted)]">
+                {data.provenance.synthetic ? `Demo ${label}` : label}
+              </p>
             </div>
           ))}
         </div>
