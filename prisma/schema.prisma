@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SuggestionCategory {
+  WEBSITE
+  PERSONALITY
+  SOCIAL
+  APPEARANCE
+  FEATURE
+  OTHER
+}
+
+enum SuggestionStatus {
+  PENDING
+  CONSIDERING
+  ACCEPTED
+  REJECTED
+  MODIFIED
+  IMPLEMENTED
+}
+
+enum DecisionKind {
+  ACCEPT
+  REJECT
+  POSTPONE
+  MODIFY
+}
+
+model ToddState {
+  id             String   @id @default("todd")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  currentMood    String   @default("suspicious")
+  favoriteThing  String   @default("Pond")
+  leastFavorite  String   @default("Being told what to do")
+  autonomyPaused Boolean  @default(false)
+  currentStatus  String   @default("Thinking")
+  nextDecisionAt DateTime?
+}
+
+model Personality {
+  id           String   @id @default("personality")
+  curiosity    Int      @default(82)
+  stubbornness Int      @default(76)
+  chaos        Int      @default(48)
+  confidence   Int      @default(86)
+  friendliness Int      @default(58)
+  updatedAt    DateTime @updatedAt
+}
+
+model Memory {
+  id         String   @id @default(cuid())
+  type       String
+  content    String
+  importance Int      @default(50)
+  createdAt  DateTime @default(now())
+
+  @@index([type, createdAt])
+}
+
+model Suggestion {
+  id           String             @id @default(cuid())
+  text         String
+  category     SuggestionCategory @default(OTHER)
+  displayName  String             @default("Anonymous human")
+  status       SuggestionStatus   @default(PENDING)
+  supportCount Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  supports     SuggestionSupport[]
+  decisions    Decision[]
+  actions      Action[]
+
+  @@index([status, createdAt])
+}
+
+model SuggestionSupport {
+  id           String     @id @default(cuid())
+  suggestionId String
+  fingerprint  String
+  createdAt    DateTime   @default(now())
+  suggestion   Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@unique([suggestionId, fingerprint])
+}
+
+model Decision {
+  id              String       @id @default(cuid())
+  suggestionId    String
+  decision        DecisionKind
+  confidence      Float
+  reasoningPublic String
+  rawResponse     Json
+  createdAt       DateTime     @default(now())
+  suggestion      Suggestion   @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  actions         Action[]
+
+  @@index([createdAt])
+}
+
+model Action {
+  id            String     @id @default(cuid())
+  suggestionId  String?
+  decisionId    String?
+  type          String
+  previousValue Json
+  newValue      Json
+  reasoning     String
+  status        String     @default("IMPLEMENTED")
+  revertedAt    DateTime?
+  createdAt     DateTime   @default(now())
+  suggestion    Suggestion? @relation(fields: [suggestionId], references: [id])
+  decision      Decision?   @relation(fields: [decisionId], references: [id])
+
+  @@index([createdAt])
+}
+
+model SiteConfig {
+  id              String   @id @default(cuid())
+  version         Int      @unique
+  isActive        Boolean  @default(false)
+  theme           String
+  accent          String
+  heroTitle       String
+  heroSubtitle    String
+  ctaCopy         String
+  announcement    String?
+  statusText      String
+  frogMood        String
+  frogAccessory   String
+  enabledSections Json
+  createdAt       DateTime @default(now())
+
+  @@index([isActive])
+}
+
+model Thought {
+  id        String   @id @default(cuid())
+  content   String
+  eventType String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SocialPost {
+  id         String   @id @default(cuid())
+  content    String
+  provider   String   @default("mock")
+  externalId String?
+  status     String   @default("POSTED")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SocialStyle {
+  id             String   @id @default("social-style")
+  maxLength      Int      @default(180)
+  emojiFrequency String   @default("low")
+  tone           String   @default("dry")
+  lowercase      Boolean  @default(false)
+  replyFrequency String   @default("medium")
+  updatedAt      DateTime @updatedAt
+}
+
+model DailyJournal {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  event     String
+  actor     String
+  metadata  Json
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AiRun {
+  id        String   @id @default(cuid())
+  operation String
+  request   Json
+  response  Json?
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

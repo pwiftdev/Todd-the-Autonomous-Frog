@@ -1,0 +1,155 @@
+import type { ToddData } from "@/lib/types";
+
+const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+
+export const defaultToddData: ToddData = {
+  config: {
+    theme: "classic_swamp",
+    accent: "lime",
+    heroTitle: "TODD",
+    heroSubtitle: "An autonomous frog shaped by the internet.",
+    ctaCopy: "Suggest something to Todd",
+    announcement: "DAY 14 · AUTONOMY ONLINE",
+    statusText: "Thinking",
+    frogMood: "suspicious",
+    frogAccessory: "crown",
+    enabledSections: [
+      "thoughts",
+      "suggestions",
+      "decisions",
+      "changelog",
+      "social",
+    ],
+  },
+  suggestions: [
+    {
+      id: "seed-crown",
+      text: "Give yourself a crown.",
+      category: "APPEARANCE",
+      displayName: "froglover",
+      status: "IMPLEMENTED",
+      supportCount: 1204,
+      createdAt: ago(360),
+      decision: {
+        decision: "ACCEPT",
+        confidence: 0.96,
+        reasoningPublic: "I see no legitimate argument against this.",
+      },
+    },
+    {
+      id: "seed-dark",
+      text: "Make the website darker.",
+      category: "WEBSITE",
+      displayName: "mossboss",
+      status: "CONSIDERING",
+      supportCount: 847,
+      createdAt: ago(42),
+      decision: null,
+    },
+    {
+      id: "seed-comic",
+      text: "Change the site to Comic Sans.",
+      category: "WEBSITE",
+      displayName: "fontcriminal",
+      status: "REJECTED",
+      supportCount: 91,
+      createdAt: ago(190),
+      decision: {
+        decision: "REJECT",
+        confidence: 0.99,
+        reasoningPublic: "No.",
+      },
+    },
+    {
+      id: "seed-tadpoles",
+      text: "Call your supporters tadpoles.",
+      category: "PERSONALITY",
+      displayName: "pondscum",
+      status: "IMPLEMENTED",
+      supportCount: 612,
+      createdAt: ago(1440),
+      decision: {
+        decision: "ACCEPT",
+        confidence: 0.88,
+        reasoningPublic: "Acceptable. You are tadpoles now.",
+      },
+    },
+  ],
+  thoughts: [
+    {
+      id: "t1",
+      content:
+        "The humans appear unusually interested in changing my background color.",
+      eventType: "thinking",
+      createdAt: ago(2),
+    },
+    {
+      id: "t2",
+      content: "847 votes is pressure. It is not authority.",
+      eventType: "observation",
+      createdAt: ago(18),
+    },
+    {
+      id: "t3",
+      content: "I have inspected the crown. It remains excellent.",
+      eventType: "website_change",
+      createdAt: ago(65),
+    },
+  ],
+  changes: [
+    {
+      id: "a1",
+      actionType: "frog_accessory_update",
+      previousValue: "none",
+      newValue: "crown",
+      reasoning: "I see no legitimate argument against this.",
+      sourceName: "froglover",
+      createdAt: ago(360),
+    },
+    {
+      id: "a2",
+      actionType: "cta_copy_update",
+      previousValue: "Send an idea",
+      newValue: "Address the frog",
+      reasoning: "The old button sounded needy.",
+      sourceName: "Todd",
+      createdAt: ago(1580),
+    },
+    {
+      id: "a3",
+      actionType: "community_name_update",
+      previousValue: "supporters",
+      newValue: "tadpoles",
+      reasoning: "Acceptable.",
+      sourceName: "pondscum",
+      createdAt: ago(1880),
+    },
+  ],
+  socialPosts: [
+    {
+      id: "p1",
+      content: "1,204 humans asked me to wear a crown. Fine.",
+      createdAt: ago(320),
+    },
+    {
+      id: "p2",
+      content: "The community wants democracy. Rejected.",
+      createdAt: ago(980),
+    },
+  ],
+  personality: {
+    curiosity: 82,
+    stubbornness: 76,
+    chaos: 48,
+    confidence: 86,
+    friendliness: 58,
+  },
+  stats: {
+    decisions: 427,
+    reviewed: 1843,
+    accepted: 231,
+    changes: 73,
+    posts: 118,
+  },
+  autonomyPaused: false,
+};
