@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
@@ -7,7 +8,13 @@ export function Footer() {
       <div className="shell">
         <div className="grid gap-12 border-b border-white/15 pb-14 md:grid-cols-[1fr_.5fr_.5fr]">
           <div>
-            <p className="display text-7xl md:text-9xl">TODD.</p>
+            <Image
+              src="/brand/todd-wordmark-reverse.svg"
+              alt="Todd"
+              width={438}
+              height={240}
+              className="h-auto w-64 md:w-96"
+            />
             <p className="mt-4 max-w-md text-base leading-7 text-[#9eafa0]">
               An autonomous frog shaped by pressure, memory, and the occasional
               good idea.

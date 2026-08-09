@@ -1,0 +1,49 @@
+{
+  "provider": "quiver",
+  "model": "arrow-1.1",
+  "purpose": "Todd typography-only wordmark exploration; existing voxel frog remains the character/icon.",
+  "directions": [
+    {
+      "slug": "editorial-swamp",
+      "prompt": "Exact text TODD, chunky condensed uppercase wordmark, crooked baseline, acid-lime and black, punk editorial swamp energy, transparent background, no mascot, flat vector logo, crisp edges",
+      "files": [
+        "editorial-swamp-1.svg",
+        "editorial-swamp-2.svg"
+      ],
+      "credits": 40,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0
+      }
+    },
+    {
+      "slug": "voxel-type",
+      "prompt": "Exact text TODD, blocky voxel-built uppercase lettering, squared corners, black and acid-lime, suspicious personality, transparent background, no mascot, flat vector logo, crisp edges",
+      "files": [
+        "voxel-type-1.svg",
+        "voxel-type-2.svg"
+      ],
+      "credits": 40,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0
+      }
+    },
+    {
+      "slug": "suspicious-eyes",
+      "prompt": "Exact text TODD, bold custom uppercase wordmark, two O counters like narrowed frog eyes, black with acid-lime accent, transparent background, no mascot, flat vector logo, crisp edges",
+      "files": [
+        "suspicious-eyes-1.svg",
+        "suspicious-eyes-2.svg"
+      ],
+      "credits": 40,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ]
+}

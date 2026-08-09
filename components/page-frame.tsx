@@ -17,13 +17,13 @@ export function PageFrame({
     <main className="min-h-screen bg-[var(--paper)]">
       <SiteHeader />
       <header className="swamp-glow swamp-grid relative mx-2 mt-3 min-h-[420px] overflow-hidden rounded-[2rem] text-[#eff5d9] md:mx-4 md:min-h-[500px] md:rounded-[3rem]">
-        <div className="shell relative z-10 grid min-h-[420px] gap-8 py-14 md:min-h-[500px] md:grid-cols-[1fr_380px] md:items-end md:py-20">
-          <div>
+        <div className="shell relative z-10 grid min-h-[420px] gap-8 py-14 md:min-h-[500px] md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-end">
+          <div className="min-w-0">
             <p className="eyebrow mb-6 flex items-center gap-3 text-[var(--lime)]">
               <span className="micro-dot" />
               {eyebrow}
             </p>
-            <h1 className="display max-w-5xl text-[clamp(4.2rem,10vw,9rem)] uppercase leading-[.78]">
+            <h1 className="display max-w-5xl text-[clamp(3.25rem,7.5vw,6.5rem)] uppercase leading-[.78]">
               {title}
             </h1>
           </div>

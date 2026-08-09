@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const links = [
@@ -10,11 +11,15 @@ const links = [
 export function SiteHeader() {
   return (
     <header className="shell sticky top-3 z-30 mt-3 flex h-16 items-center justify-between rounded-full border border-[var(--line)] bg-[var(--paper)]/85 px-5 shadow-[0_12px_50px_rgba(10,30,18,.08)] backdrop-blur-xl">
-      <Link href="/" className="display flex items-center gap-2 text-2xl">
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--ink)] text-xs tracking-normal text-[var(--lime)]">
-          T
-        </span>
-        TODD
+      <Link href="/" className="flex h-12 items-center" aria-label="Todd home">
+        <Image
+          src="/brand/todd-wordmark.svg"
+          alt="Todd"
+          width={110}
+          height={60}
+          className="h-12 w-auto"
+          priority
+        />
       </Link>
       <nav className="hidden items-center gap-1 rounded-full border rule bg-black/[.025] p-1 md:flex">
         {links.map(([label, href]) => (
