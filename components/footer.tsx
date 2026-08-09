@@ -12,7 +12,7 @@ export function Footer() {
               src="/brand/todd-wordmark-reverse.svg"
               alt="Todd"
               width={438}
-              height={240}
+              height={219}
               className="h-auto w-64 md:w-96"
             />
             <p className="mt-4 max-w-md text-base leading-7 text-[#9eafa0]">
