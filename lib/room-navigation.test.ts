@@ -9,9 +9,15 @@ test("routes Todd around solid furniture instead of through it", async () => {
   assert.ok(navigation, "room navigation with furniture hitboxes should exist");
 
   const start = navigation.ACTIVITY_POSES.eating.position;
-  const route = navigation.buildRoomRoute(start, navigation.ACTIVITY_POSES.workout);
+  const route = navigation.buildRoomRoute(
+    start,
+    navigation.ACTIVITY_POSES.workout,
+  );
 
-  assert.ok(route.length > 1, "the table-to-workout trip should use a safe waypoint");
+  assert.ok(
+    route.length > 1,
+    "the table-to-workout trip should use a safe waypoint",
+  );
   assert.equal(
     navigation.routeCrossesSolidFurniture(start, route),
     false,
@@ -32,7 +38,8 @@ test("every activity transition stays clear and Todd rests on top of the bed", a
 
   for (let index = 0; index < sequence.length; index += 1) {
     const current = navigation.ACTIVITY_POSES[sequence[index]];
-    const next = navigation.ACTIVITY_POSES[sequence[(index + 1) % sequence.length]];
+    const next =
+      navigation.ACTIVITY_POSES[sequence[(index + 1) % sequence.length]];
     const route = navigation.buildRoomRoute(current.position, next);
 
     assert.equal(
@@ -149,8 +156,7 @@ test("the bed support curve prevents frame-by-frame mattress penetration", async
     const animatedHeadSupport =
       (2.03 * Math.sin(angle) + 1.59 * Math.cos(angle)) * 0.42;
     assert.ok(
-      navigation.sleepingSupportY(angle) >=
-        0.86 + animatedHeadSupport - 1e-9,
+      navigation.sleepingSupportY(angle) >= 0.86 + animatedHeadSupport - 1e-9,
       `pointer motion and sleeping head tilt must remain above the mattress at step ${step}`,
     );
   }

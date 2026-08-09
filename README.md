@@ -20,7 +20,7 @@ The application is a polished functional prototype. The public UI and safe mutat
 | --------------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
 | Public homepage             | Implemented            | Responsive editorial/swamp design with live-looking Todd state                               |
 | Animated Todd               | Implemented            | Real-time voxel geometry rendered with React Three Fiber                                     |
-| Todd's room                 | Prototype implemented  | Isometric voxel room with synchronized activity simulation                                   |
+| Todd's house                | Implemented            | Interactive two-story voxel house, grounds, 12 spaces, and 96 activity contracts             |
 | Suggestions                 | Implemented            | Submission, categories, support counts, statuses, and public feed                            |
 | Suggestion rate limiting    | MVP implemented        | In-memory limiter; needs a distributed store before multi-instance deployment                |
 | Personality                 | Implemented            | Numeric persistent traits in Prisma with seeded defaults                                     |
@@ -35,7 +35,7 @@ The application is a polished functional prototype. The public UI and safe mutat
 | Real X integration          | Not implemented        | Credentials, OAuth/API integration, delivery tracking, and policy controls required          |
 | Admin panel                 | Implemented            | Pause/resume, manual cycles, inspection, rollback, and failure visibility                    |
 | Clean Day 0 birth           | Not implemented        | Current seed and no-database fallback contain realistic fake history                         |
-| Live room state             | Simulated              | Viewers follow a deterministic wall-clock loop; room activity is not persisted in PostgreSQL |
+| Live house state            | Simulated              | Viewers follow a deterministic wall-clock loop; brain-selected activity is not yet persisted |
 | Live event transport        | Not implemented        | Add Server-Sent Events or WebSockets for real cross-viewer state updates                     |
 | Production deployment       | Not completed          | Docker development database and Vercel cron configuration are included                       |
 
@@ -99,8 +99,9 @@ Todd must never receive unrestricted filesystem access, shell access, SQL access
 
 - Three.js
 - React Three Fiber
+- React Three Drei camera controls
 - Code-native voxel geometry; no static Todd image
-- Viewport-aware rendering to avoid running the room canvas while far off-screen
+- Shared voxel geometry and viewport-aware rendering to limit GPU work
 
 ### Data and backend
 
@@ -131,7 +132,8 @@ app/
 
 components/
   todd-voxel.tsx              Reusable animated voxel frog model
-  todd-room.tsx               Voxel room, furniture, activity loop, and movement
+  todd-house.tsx              Two-story house, grounds, furniture, and active-room effects
+  todd-room.tsx               World canvas, Todd movement, camera, simulation, and live HUD
   todd-frog.tsx               Public wrapper for the voxel character
   suggestion-form.tsx         Suggestion input UX
   suggestion-card.tsx         Suggestion status and support UI
@@ -140,6 +142,8 @@ components/
   footer.tsx                  Shared footer
 
 lib/
+  todd-world.ts               Brain-to-world activity contracts, anchors, needs, and catalog
+  todd-world-navigation.ts    Collision volumes, visibility routes, and multi-floor stairs
   ai/provider.ts              AI interface and deterministic mock provider
   social/provider.ts          Social interface and mock provider
   autonomy.ts                 Decision cycle and safe action execution
@@ -360,23 +364,22 @@ Todd is assembled from real-time Three.js box geometry. The character supports:
 - Timed blinking
 - Pointer gaze tracking
 - Crown accessory
+- Oversized head with a narrow torso, articulated arms, legs, feet, and toes
+- Counter-swinging limbs, lifted feet, torso sway, and walking bounce
 - Thinking particles
 - `idle`, `thinking`, `reviewing`, and `sleeping` model states
 
-### Room
+### House and world
 
-The current isometric room contains:
+Todd now lives in an interactive, orbitable two-story voxel house with day/night lighting. Its 12 spaces are a suggestion porch, office, kitchen, thinking lounge, bathroom, bedroom, gym, memory archive, workshop, greenhouse, pond courtyard, and rooftop observatory. Each space has purpose-built furniture, active-object lighting, and a safe destination anchor.
 
-- PC and suggestion-review desk
-- Bed
-- Eating table
-- Yoga mat and weights
-- Garden bed and flowers
-- Window, floor, and walls
+The world catalog defines 96 unique activities. Every activity has a stable ID, room destination, animation family, activators, duration range, cooldown, interruptibility policy, and need effects. The future brain can choose one directly by passing its ID as `requestedActivityId` to `ToddRoom`; until that state is persisted, the public demo infers a starting action from Todd's thought and runs a deterministic shared loop.
 
-Room activities include reviewing, thinking, gardening, eating, working out, and sleeping. The initial activity is inferred from keywords in Todd's current thought, and the remaining loop uses a deterministic wall-clock schedule so viewers with synchronized clocks generally observe the same state.
+Todd keeps a persistent world transform and walks continuously between destinations instead of respawning. A visibility-graph router plans around inflated wall and furniture collision volumes using Todd's rendered body radius. Vertical support positions are derived from his lowest animated foot so his body stays above floors and steps. Floor changes traverse each visible stair step, water entry is handled as a separate vertical transition, and new decisions wait until the current route finishes. The navigation test matrix validates every room-to-room pairing.
 
-This is a visualization prototype. The activity is not yet stored in the database or emitted by the real brain.
+At the destination, Todd turns toward the station and changes pose for sleeping, working, reading, thinking, eating, swimming, exercising, dancing, hiding, and other action families. Viewers can orbit, zoom, and enter fullscreen while the HUD exposes whether he is traveling or acting, his room, thought, activators, needs, and upcoming schedule.
+
+The house is ready as a visualization and activity-selection surface. The activity is not yet stored in the database or emitted by the real brain.
 
 ## Admin and scheduler
 

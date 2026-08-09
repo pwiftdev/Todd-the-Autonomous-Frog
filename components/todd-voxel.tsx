@@ -1,8 +1,10 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useRef, type RefObject } from "react";
 import * as THREE from "three";
+
+const sharedBoxGeometry = new THREE.BoxGeometry(1, 1, 1);
 
 export type ToddActivity = "idle" | "thinking" | "reviewing" | "sleeping";
 
@@ -18,6 +20,9 @@ export type BoxProps = {
   scale: [number, number, number];
   color: string;
   rotation?: [number, number, number];
+  emissive?: string;
+  emissiveIntensity?: number;
+  opacity?: number;
 };
 
 export function VoxelBox({
@@ -25,18 +30,134 @@ export function VoxelBox({
   scale,
   color,
   rotation = [0, 0, 0],
+  emissive = "#000000",
+  emissiveIntensity = 0,
+  opacity = 1,
 }: BoxProps) {
   return (
     <mesh
       position={position}
       scale={scale}
       rotation={rotation}
+      geometry={sharedBoxGeometry}
+      dispose={null}
       castShadow
       receiveShadow
     >
-      <boxGeometry />
-      <meshStandardMaterial color={color} roughness={0.72} metalness={0.02} />
+      <meshStandardMaterial
+        color={color}
+        roughness={0.72}
+        metalness={0.02}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+        transparent={opacity < 1}
+        opacity={opacity}
+      />
     </mesh>
+  );
+}
+
+export function FrogBody({
+  body,
+  leftArm,
+  rightArm,
+  leftLeg,
+  rightLeg,
+}: {
+  body: RefObject<THREE.Group | null>;
+  leftArm: RefObject<THREE.Group | null>;
+  rightArm: RefObject<THREE.Group | null>;
+  leftLeg: RefObject<THREE.Group | null>;
+  rightLeg: RefObject<THREE.Group | null>;
+}) {
+  return (
+    <group ref={body}>
+      <VoxelBox
+        position={[0, -1.7, 0]}
+        scale={[1.42, 0.62, 0.96]}
+        color="#5c8732"
+      />
+      <VoxelBox
+        position={[0, -1.72, 0.63]}
+        scale={[1.05, 0.42, 0.16]}
+        color="#80a947"
+      />
+      <VoxelBox
+        position={[0, -2.02, 0]}
+        scale={[1.18, 0.24, 0.88]}
+        color="#507b2d"
+      />
+      <group ref={leftArm} position={[-1.05, -1.55, 0]}>
+        <VoxelBox
+          position={[0, -0.28, 0]}
+          scale={[0.38, 0.82, 0.42]}
+          color="#638f35"
+          rotation={[0, 0, -0.12]}
+        />
+        <VoxelBox
+          position={[-0.03, -0.72, 0.22]}
+          scale={[0.52, 0.24, 0.68]}
+          color="#729d3c"
+        />
+      </group>
+      <group ref={rightArm} position={[1.05, -1.55, 0]}>
+        <VoxelBox
+          position={[0, -0.28, 0]}
+          scale={[0.38, 0.82, 0.42]}
+          color="#638f35"
+          rotation={[0, 0, 0.12]}
+        />
+        <VoxelBox
+          position={[0.03, -0.72, 0.22]}
+          scale={[0.52, 0.24, 0.68]}
+          color="#729d3c"
+        />
+      </group>
+      <group ref={leftLeg} position={[-0.92, -2.05, 0]}>
+        <VoxelBox
+          position={[0, -0.34, 0]}
+          scale={[0.5, 0.88, 0.55]}
+          color="#4d792b"
+        />
+        <VoxelBox
+          position={[-0.08, -0.6, 0.16]}
+          scale={[0.58, 0.3, 0.58]}
+          color="#729d3c"
+        />
+        <VoxelBox
+          position={[-0.14, -0.88, 0.3]}
+          scale={[0.86, 0.3, 1.18]}
+          color="#86aa45"
+        />
+        <VoxelBox
+          position={[-0.32, -0.88, 0.72]}
+          scale={[0.18, 0.2, 0.42]}
+          color="#779f3d"
+        />
+      </group>
+      <group ref={rightLeg} position={[0.92, -2.05, 0]}>
+        <VoxelBox
+          position={[0, -0.34, 0]}
+          scale={[0.5, 0.88, 0.55]}
+          color="#4d792b"
+        />
+        <VoxelBox
+          position={[0.08, -0.6, 0.16]}
+          scale={[0.58, 0.3, 0.58]}
+          color="#729d3c"
+        />
+        <VoxelBox
+          position={[0.14, -0.88, 0.3]}
+          scale={[0.86, 0.3, 1.18]}
+          color="#86aa45"
+        />
+        <VoxelBox
+          position={[0.32, -0.88, 0.72]}
+          scale={[0.18, 0.2, 0.42]}
+          color="#779f3d"
+        />
+      </group>
+    </group>
   );
 }
 
@@ -77,8 +198,13 @@ function Eye({ side, sleeping }: { side: -1 | 1; sleeping: boolean }) {
         scale={[0.68, 0.68, 0.18]}
         color="#e8e6c4"
       />
-      <mesh ref={pupil} position={[0, -0.02, 0.55]} scale={[0.23, 0.34, 0.13]}>
-        <boxGeometry />
+      <mesh
+        ref={pupil}
+        position={[0, -0.02, 0.55]}
+        scale={[0.23, 0.34, 0.13]}
+        geometry={sharedBoxGeometry}
+        dispose={null}
+      >
         <meshStandardMaterial color="#162016" roughness={0.9} />
       </mesh>
       <VoxelBox

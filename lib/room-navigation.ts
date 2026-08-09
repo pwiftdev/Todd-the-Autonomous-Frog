@@ -16,7 +16,13 @@ type Collider = {
   topY: number;
 };
 
-type Point2 = { x: number; z: number };
+export type NavigationPoint = { x: number; z: number };
+export type NavigationRect = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
 
 const FLOOR_TOP_Y = -0.1;
 const MATTRESS_TOP_Y = 0.86;
@@ -147,19 +153,10 @@ export const ACTIVITY_POSES = {
   },
 } as const satisfies Record<string, ActivityPose>;
 
-function pointInsideBounds(point: Point2) {
-  return (
-    point.x >= ROOM_BOUNDS.minX &&
-    point.x <= ROOM_BOUNDS.maxX &&
-    point.z >= ROOM_BOUNDS.minZ &&
-    point.z <= ROOM_BOUNDS.maxZ
-  );
-}
-
-function segmentIntersectionRange(
-  start: Point2,
-  end: Point2,
-  collider: Collider,
+export function segmentIntersectionRange(
+  start: NavigationPoint,
+  end: NavigationPoint,
+  collider: NavigationRect,
 ): [number, number] | null {
   const deltaX = end.x - start.x;
   const deltaZ = end.z - start.z;
@@ -181,28 +178,41 @@ function segmentIntersectionRange(
     if (enter > exit) return null;
   }
 
-  return exit >= 0 && enter <= 1 ? [Math.max(0, enter), Math.min(1, exit)] : null;
+  return exit >= 0 && enter <= 1
+    ? [Math.max(0, enter), Math.min(1, exit)]
+    : null;
 }
 
-function floorSegmentIsClear(start: Point2, end: Point2) {
-  return ROOM_COLLIDERS.every(
-    (collider) => segmentIntersectionRange(start, end, collider) === null,
-  );
-}
+export function buildCollisionFreePath(
+  start: NavigationPoint,
+  end: NavigationPoint,
+  colliders: readonly NavigationRect[],
+  bounds: NavigationRect,
+  cornerGap = CORNER_GAP,
+) {
+  const pointInsideBounds = (point: NavigationPoint) =>
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.z >= bounds.minZ &&
+    point.z <= bounds.maxZ;
+  const segmentIsClear = (from: NavigationPoint, to: NavigationPoint) =>
+    colliders.every(
+      (collider) => segmentIntersectionRange(from, to, collider) === null,
+    );
+  const navigationCorners = () =>
+    colliders.flatMap((collider) =>
+      [
+        { x: collider.minX - cornerGap, z: collider.minZ - cornerGap },
+        { x: collider.minX - cornerGap, z: collider.maxZ + cornerGap },
+        { x: collider.maxX + cornerGap, z: collider.minZ - cornerGap },
+        { x: collider.maxX + cornerGap, z: collider.maxZ + cornerGap },
+      ].filter(pointInsideBounds),
+    );
 
-function navigationCorners(): Point2[] {
-  return ROOM_COLLIDERS.flatMap((collider) =>
-    [
-      { x: collider.minX - CORNER_GAP, z: collider.minZ - CORNER_GAP },
-      { x: collider.minX - CORNER_GAP, z: collider.maxZ + CORNER_GAP },
-      { x: collider.maxX + CORNER_GAP, z: collider.minZ - CORNER_GAP },
-      { x: collider.maxX + CORNER_GAP, z: collider.maxZ + CORNER_GAP },
-    ].filter(pointInsideBounds),
-  );
-}
-
-function shortestFloorPath(start: Point2, end: Point2): Point2[] {
-  if (floorSegmentIsClear(start, end)) return [end];
+  if (!pointInsideBounds(start) || !pointInsideBounds(end)) {
+    throw new Error("Navigation endpoint is outside the walkable bounds");
+  }
+  if (segmentIsClear(start, end)) return [end];
 
   const nodes = [start, end, ...navigationCorners()];
   const distances = nodes.map(() => Number.POSITIVE_INFINITY);
@@ -226,7 +236,7 @@ function shortestFloorPath(start: Point2, end: Point2): Point2[] {
 
     for (let candidate = 0; candidate < nodes.length; candidate += 1) {
       if (candidate === current || visited[candidate]) continue;
-      if (!floorSegmentIsClear(nodes[current], nodes[candidate])) continue;
+      if (!segmentIsClear(nodes[current], nodes[candidate])) continue;
       const distance = Math.hypot(
         nodes[candidate].x - nodes[current].x,
         nodes[candidate].z - nodes[current].z,
@@ -243,14 +253,21 @@ function shortestFloorPath(start: Point2, end: Point2): Point2[] {
     throw new Error("No collision-free route exists between room positions");
   }
 
-  const path: Point2[] = [];
+  const path: NavigationPoint[] = [];
   for (let current = 1; current > 0; current = previous[current]) {
     path.unshift(nodes[current]);
   }
   return path;
 }
 
-function isOnBed(point: Point2) {
+function shortestFloorPath(
+  start: NavigationPoint,
+  end: NavigationPoint,
+): NavigationPoint[] {
+  return buildCollisionFreePath(start, end, ROOM_COLLIDERS, ROOM_BOUNDS);
+}
+
+function isOnBed(point: NavigationPoint) {
   return bedSupportsPoint(point.x, point.z);
 }
 
