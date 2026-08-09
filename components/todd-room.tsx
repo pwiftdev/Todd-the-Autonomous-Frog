@@ -389,6 +389,9 @@ export function ToddRoom({
   const activity = worldActivities[activeIndex];
   const activityRemaining =
     activeIndex === scheduledIndex ? `${remaining}s` : "finishing route";
+  const activityTitle = traveling
+    ? `Walking to ${roomNames[activity.room]}`
+    : activity.label;
   const needs = useMemo(() => calculateNeeds(activity, now), [activity, now]);
   const upcoming = [1, 2, 3].map(
     (offset) =>
@@ -424,7 +427,36 @@ export function ToddRoom({
         </p>
       </div>
       <div className="overflow-hidden rounded-[2rem] bg-[#101f18] shadow-[0_45px_120px_rgba(7,24,14,.25)] md:rounded-[3rem]">
-        <div className="relative h-[620px] md:h-[820px]">
+        <div
+          data-mobile-activity-status="true"
+          className="border-b border-white/10 bg-[#0b1811] px-5 py-4 text-[#eff5d9] md:hidden"
+          aria-live="polite"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="eyebrow flex items-center gap-2 text-[var(--lime)]">
+                <Radio size={12} />
+                Todd is {traveling ? "walking" : "live"} ·{" "}
+                {night ? "Night" : "Day"}
+              </p>
+              <h3 className="mt-2 truncate text-lg font-bold">{activityTitle}</h3>
+            </div>
+            <span className="eyebrow flex shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-[#aebcaf]">
+              <Clock3 size={12} />
+              {activityRemaining}
+            </span>
+          </div>
+          <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#aebcaf]">
+            {activity.detail}
+          </p>
+          <p className="eyebrow mt-3 text-[#7f9182]">
+            {roomNames[activity.room]}
+          </p>
+        </div>
+        <div
+          data-todd-world-scene="true"
+          className="relative h-[620px] md:h-[820px]"
+        >
           {visible ? (
             <Canvas
               dpr={[1, 1.5]}
@@ -442,17 +474,16 @@ export function ToddRoom({
           ) : (
             <div className="swamp-grid h-full animate-pulse bg-[#15271e]" />
           )}
-          <div className="glass-dark pointer-events-none absolute left-3 top-3 max-w-[calc(100%_-_5.5rem)] rounded-2xl p-5 text-[#eff5d9] md:left-6 md:top-6 md:max-w-[390px]">
+          <div
+            data-desktop-activity-overlay="true"
+            className="glass-dark pointer-events-none absolute left-6 top-6 hidden max-w-[390px] rounded-2xl p-5 text-[#eff5d9] md:block"
+          >
             <p className="eyebrow flex items-center gap-3 text-[var(--lime)]">
               <Radio size={13} />
               Todd is {traveling ? "walking" : "live"} ·{" "}
               {night ? "Night" : "Day"}
             </p>
-            <h3 className="mt-4 text-2xl font-bold">
-              {traveling
-                ? `Walking to ${roomNames[activity.room]}`
-                : activity.label}
-            </h3>
+            <h3 className="mt-4 text-2xl font-bold">{activityTitle}</h3>
             <p className="mt-2 text-sm leading-5 text-[#aebcaf]">
               {activity.detail}
             </p>
