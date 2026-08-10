@@ -88,15 +88,26 @@ function NowCard({
   );
 }
 
-export function WatcherRail({ data }: { data: ToddData }) {
+export function WatcherRail({
+  data,
+  variant = "default",
+}: {
+  data: ToddData;
+  /** Stream layout: denser live feed, no interaction chrome. */
+  variant?: "default" | "stream";
+}) {
+  const stream = variant === "stream";
   const latest = data.thoughts[0];
-  const olderThoughts = data.thoughts.slice(1, 4);
+  const olderThoughts = data.thoughts.slice(1, stream ? 2 : 4);
   const considering = data.suggestions.filter((s) => s.status === "CONSIDERING");
   const resolved = data.suggestions
     .filter((s) => RESOLVED.has(s.status) && s.decision)
-    .slice(0, 3);
+    .slice(0, stream ? 2 : 3);
   const pending = data.suggestions.filter((s) => s.status === "PENDING");
-  const shownSuggestions = [...considering, ...pending, ...resolved].slice(0, 6);
+  const shownSuggestions = [...considering, ...pending, ...resolved].slice(
+    0,
+    stream ? 4 : 6,
+  );
   const nowItems = [
     ...considering.map((suggestion) => ({
       suggestion,
@@ -109,7 +120,11 @@ export function WatcherRail({ data }: { data: ToddData }) {
   ];
 
   return (
-    <aside className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto overscroll-contain px-1 pb-8 lg:pr-1">
+    <aside
+      className={`flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain ${
+        stream ? "gap-4 px-1 pb-3" : "gap-6 px-1 pb-8 lg:pr-1"
+      }`}
+    >
       <div className="rounded-2xl border border-[var(--ink)] bg-[var(--ink)] p-5 text-[var(--paper)]">
         <div className="flex items-center justify-between gap-3">
           <p className="eyebrow flex items-center gap-2 text-[var(--lime)]">
@@ -182,17 +197,19 @@ export function WatcherRail({ data }: { data: ToddData }) {
       </RailSection>
 
       <RailSection id="pressure" eyebrow="community" title="pressure">
-        <div className="mb-4 overflow-hidden rounded-2xl border rule bg-[var(--surface)]">
-          <div className="bg-[var(--lime)] px-4 py-3 text-[#14231b]">
-            <p className="eyebrow">yell at the frog</p>
-            <p className="mt-1 text-sm font-bold">
-              suggest something. todd might care.
-            </p>
+        {!stream && (
+          <div className="mb-4 overflow-hidden rounded-2xl border rule bg-[var(--surface)]">
+            <div className="bg-[var(--lime)] px-4 py-3 text-[#14231b]">
+              <p className="eyebrow">yell at the frog</p>
+              <p className="mt-1 text-sm font-bold">
+                suggest something. todd might care.
+              </p>
+            </div>
+            <div className="p-4">
+              <SuggestionForm compact />
+            </div>
           </div>
-          <div className="p-4">
-            <SuggestionForm compact />
-          </div>
-        </div>
+        )}
 
         {shownSuggestions.length === 0 ? (
           <p className="rounded-xl border rule bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">
@@ -219,7 +236,7 @@ export function WatcherRail({ data }: { data: ToddData }) {
           </p>
         ) : (
           <div className="divide-y rule overflow-hidden rounded-xl border rule bg-[var(--surface)]">
-            {data.changes.slice(0, 5).map((change) => (
+            {data.changes.slice(0, stream ? 3 : 5).map((change) => (
               <article key={change.id} className="grid gap-2 p-4">
                 <p className="eyebrow text-[var(--muted)]">
                   {change.actionType.replaceAll("_", " ")}
@@ -241,48 +258,53 @@ export function WatcherRail({ data }: { data: ToddData }) {
         )}
       </RailSection>
 
-      <RailSection id="creature" eyebrow="creature" title="personality">
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(data.personality).map(([trait, score]) => (
-            <div
-              key={trait}
-              className="rounded-xl border rule bg-[var(--surface)] p-3"
-            >
-              <p className="eyebrow text-[var(--muted)]">{trait}</p>
-              <p className="display mt-2 text-2xl">{score}</p>
-              <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/10">
-                <div
-                  className="h-full rounded-full bg-[var(--lime)]"
-                  style={{ width: `${score}%` }}
-                />
+      {!stream && (
+        <RailSection id="creature" eyebrow="creature" title="personality">
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(data.personality).map(([trait, score]) => (
+              <div
+                key={trait}
+                className="rounded-xl border rule bg-[var(--surface)] p-3"
+              >
+                <p className="eyebrow text-[var(--muted)]">{trait}</p>
+                <p className="display mt-2 text-2xl">{score}</p>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/10">
+                  <div
+                    className="h-full rounded-full bg-[var(--lime)]"
+                    style={{ width: `${score}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/profile" className="eyebrow text-[var(--muted)] underline">
-            full profile
-          </Link>
-          <Link
-            href="/thoughts"
-            className="eyebrow text-[var(--muted)] underline"
-          >
-            all thoughts
-          </Link>
-          <Link
-            href="/suggestions"
-            className="eyebrow text-[var(--muted)] underline"
-          >
-            all suggestions
-          </Link>
-          <Link
-            href="/changelog"
-            className="eyebrow text-[var(--muted)] underline"
-          >
-            changelog
-          </Link>
-        </div>
-      </RailSection>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/profile"
+              className="eyebrow text-[var(--muted)] underline"
+            >
+              full profile
+            </Link>
+            <Link
+              href="/thoughts"
+              className="eyebrow text-[var(--muted)] underline"
+            >
+              all thoughts
+            </Link>
+            <Link
+              href="/suggestions"
+              className="eyebrow text-[var(--muted)] underline"
+            >
+              all suggestions
+            </Link>
+            <Link
+              href="/changelog"
+              className="eyebrow text-[var(--muted)] underline"
+            >
+              changelog
+            </Link>
+          </div>
+        </RailSection>
+      )}
     </aside>
   );
 }

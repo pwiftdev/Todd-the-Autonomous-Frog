@@ -365,12 +365,15 @@ export function ToddRoom({
   requestedActivityId,
   liveSync = true,
   embed = false,
+  flush = false,
 }: {
   thought: string;
   requestedActivityId?: string;
   liveSync?: boolean;
   /** Dashboard pane mode: no marketing chrome, fills parent height. */
   embed?: boolean;
+  /** Edge-to-edge stream mode: no rounded chrome or capture controls. */
+  flush?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [traveling, setTraveling] = useState(false);
@@ -479,9 +482,11 @@ export function ToddRoom({
   const scene = (
     <div
       className={`flex h-full min-h-0 flex-col overflow-hidden bg-[#101f18] ${
-        embed
-          ? "rounded-[1.5rem] md:rounded-[2rem]"
-          : "rounded-[2rem] shadow-[0_45px_120px_rgba(7,24,14,.25)] md:rounded-[3rem]"
+        flush
+          ? "rounded-none"
+          : embed
+            ? "rounded-[1.5rem] md:rounded-[2rem]"
+            : "rounded-[2rem] shadow-[0_45px_120px_rgba(7,24,14,.25)] md:rounded-[3rem]"
       }`}
     >
       <div
@@ -516,7 +521,9 @@ export function ToddRoom({
       <div
         data-todd-world-scene="true"
         className={`relative min-h-0 flex-1 ${
-          embed ? "h-full min-h-[420px]" : "h-[620px] md:h-[820px]"
+          embed || flush
+            ? "h-full min-h-0"
+            : "h-[620px] md:h-[820px]"
         }`}
       >
         {visible ? (
@@ -559,17 +566,23 @@ export function ToddRoom({
             </span>
           </div>
         </div>
-        <button
-          onClick={openFullscreen}
-          className="button glass-dark absolute right-3 top-3 z-10 min-h-0 border-white/15 px-3 py-2 text-[#eff5d9] md:right-4 md:top-4"
-          aria-label="View house fullscreen"
-        >
-          <Expand size={16} />
-          <span className="hidden sm:inline">Fullscreen</span>
-        </button>
+        {!flush && (
+          <button
+            onClick={openFullscreen}
+            className="button glass-dark absolute right-3 top-3 z-10 min-h-0 border-white/15 px-3 py-2 text-[#eff5d9] md:right-4 md:top-4"
+            aria-label="View house fullscreen"
+          >
+            <Expand size={16} />
+            <span className="hidden sm:inline">Fullscreen</span>
+          </button>
+        )}
         <div
           className={`glass-dark pointer-events-none absolute bottom-3 right-3 max-w-[300px] rounded-2xl p-4 text-[#eff5d9] ${
-            embed ? "hidden xl:block" : "hidden lg:block"
+            flush
+              ? "hidden lg:block"
+              : embed
+                ? "hidden xl:block"
+                : "hidden lg:block"
           }`}
         >
           <p className="eyebrow flex items-center gap-2 text-[#aebcaf]">
@@ -580,9 +593,11 @@ export function ToddRoom({
             “{liveThought}”
           </p>
         </div>
-        <div className="eyebrow pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-white/60 backdrop-blur md:block">
-          Drag to orbit · Scroll to zoom
-        </div>
+        {!flush && (
+          <div className="eyebrow pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-white/60 backdrop-blur md:block">
+            Drag to orbit · Scroll to zoom
+          </div>
+        )}
       </div>
       {!embed && (
         <div className="border-t border-white/10 bg-[#0b1811] text-[#eff5d9]">
@@ -652,9 +667,13 @@ export function ToddRoom({
     </div>
   );
 
-  if (embed) {
+  if (embed || flush) {
     return (
-      <div id="todd-house" ref={container} className="h-full min-h-[520px]">
+      <div
+        id="todd-house"
+        ref={container}
+        className={`h-full min-h-0 ${flush ? "" : "min-h-[520px]"}`}
+      >
         {scene}
       </div>
     );
