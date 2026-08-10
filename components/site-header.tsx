@@ -1,12 +1,27 @@
 import Image from "next/image";
 import Link from "next/link";
 
+const X_PROFILE_URL = "https://x.com/ToddTheFrog";
+
 const anchors = [
   ["How it works", "#experiment"],
   ["Live", "#live-dashboard"],
   ["Thoughts", "#thoughts-showcase"],
   ["Suggest", "#suggest"],
 ];
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.258 5.686 5.906-5.686Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 export function SiteHeader({
   dayNumber,
@@ -39,6 +54,15 @@ export function SiteHeader({
         ))}
       </nav>
       <div className="eyebrow flex items-center gap-3">
+        <a
+          href={X_PROFILE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Todd on X"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border rule transition-colors hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          <XIcon className="h-3.5 w-3.5" />
+        </a>
         <span className="micro-dot" />
         <span className="hidden sm:inline">Live</span>
         {typeof dayNumber === "number" && (
@@ -66,6 +90,15 @@ export function SiteHeader({
               {label}
             </a>
           ))}
+          <a
+            href={X_PROFILE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="eyebrow flex items-center gap-2 rounded-xl px-4 py-3 hover:bg-black/5"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+            Follow on X
+          </a>
         </nav>
       </details>
     </header>
