@@ -6,6 +6,7 @@ import { useEffect } from "react";
 const REFRESH_EVENTS = [
   "suggestion.created",
   "suggestion.supported",
+  "suggestion.considering",
   "decision.made",
   "thought.created",
   "config.updated",

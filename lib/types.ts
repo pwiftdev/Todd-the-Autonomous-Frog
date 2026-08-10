@@ -34,6 +34,7 @@ export type PublicSuggestion = {
   status: SuggestionStatus;
   supportCount: number;
   createdAt: Date;
+  updatedAt: Date;
   decision?: {
     reasoningPublic: string;
     confidence: number;

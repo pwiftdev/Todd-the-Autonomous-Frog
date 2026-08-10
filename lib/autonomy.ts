@@ -3,6 +3,7 @@ import { aiProvider } from "@/lib/ai/provider";
 import {
   enqueueOutbox,
   getActiveToddActivity,
+  publishOutboxBatch,
   resolveWorldActivity,
   setToddActivity,
 } from "@/lib/activity";
@@ -12,27 +13,12 @@ import { socialProvider } from "@/lib/social/provider";
 import type { SiteConfigData } from "@/lib/types";
 import { assertWithinTokenBudget, recordAiUsage } from "@/lib/usage";
 import { getMaxSocialPostsPerDay } from "@/lib/config";
+import {
+  sanitizeEvaluationAction,
+  validateConfigValue,
+} from "@/lib/evaluation-sanitize";
 import { toddVoice } from "@/lib/todd-personality";
 import { evaluationSchema, normalizeEvaluation, type Evaluation } from "@/lib/validation";
-
-const allowedValues: Partial<Record<keyof SiteConfigData, readonly string[]>> =
-  {
-    theme: ["classic_swamp", "midnight_swamp", "misty_pond"],
-    accent: ["lime", "amber", "mint"],
-    frogMood: ["calm", "suspicious", "pleased", "plotting"],
-    frogAccessory: ["none", "crown", "lily"],
-  };
-
-function validateConfigValue(key: keyof SiteConfigData, value: string | null) {
-  const choices = allowedValues[key];
-  if (choices && (value === null || !choices.includes(value)))
-    throw new Error(`Value is not allowed for ${key}`);
-  if (
-    ["heroTitle", "heroSubtitle", "ctaCopy", "statusText"].includes(key) &&
-    !value
-  )
-    throw new Error(`${key} cannot be empty`);
-}
 
 async function applyConfigAction(
   evaluation: Evaluation,
@@ -133,6 +119,18 @@ export async function runDecisionCycle() {
     where: { id: suggestion.id },
     data: { status: "CONSIDERING" },
   });
+  await enqueueOutbox("suggestion.considering", {
+    suggestionId: suggestion.id,
+    text: suggestion.text,
+    category: suggestion.category,
+    supportCount: suggestion.supportCount,
+  });
+  await setToddActivity({
+    activityId: "review_suggestions",
+    reason: `looking at: ${suggestion.text.slice(0, 80)}`,
+  });
+  // Publish mid-cycle so the watcher rail can show "considering" while Todd thinks.
+  await publishOutboxBatch();
 
   const request = {
     suggestion: {
@@ -169,7 +167,9 @@ export async function runDecisionCycle() {
 
   try {
     const ai = await aiProvider.evaluateSuggestion(request);
-    const evaluation = normalizeEvaluation(evaluationSchema.parse(ai.value));
+    const evaluation = sanitizeEvaluationAction(
+      normalizeEvaluation(evaluationSchema.parse(ai.value)),
+    );
     evaluation.reasoningPublic = toddVoice(evaluation.reasoningPublic);
     if (evaluation.thought) evaluation.thought = toddVoice(evaluation.thought);
     if (evaluation.memoryToStore) {

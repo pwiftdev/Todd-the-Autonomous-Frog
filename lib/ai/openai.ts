@@ -3,6 +3,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { AiProvider, AiResult, EvaluationContext } from "@/lib/ai/provider";
 import { getOpenAiModel } from "@/lib/config";
+import { allowedConfigValues } from "@/lib/site-config-allowlist";
 import { buildToddSystemPrompt, toddVoice } from "@/lib/todd-personality";
 import {
   evaluationSchema,
@@ -65,7 +66,9 @@ export class OpenAiProvider implements AiProvider {
             siteConfig: context.config,
             outputRules: {
               decision: ["accept", "reject", "postpone", "modify"],
-              action: "nullable site_config_update only",
+              action:
+                "nullable site_config_update only; if the change is not a listed config value, set action to null and still decide",
+              allowedActionValues: allowedConfigValues,
               activityId:
                 "nullable world activity id such as review_suggestions, deep_thought, yoga, lift_weights, pond_relax",
               voice: "all public strings lowercase degen frog talk",

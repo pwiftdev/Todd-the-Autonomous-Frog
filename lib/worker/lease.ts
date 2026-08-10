@@ -55,7 +55,8 @@ export async function beginBrainCycle(input: {
   const existing = await prisma.brainCycle.findUnique({
     where: { idempotencyKey: input.idempotencyKey },
   });
-  if (existing?.status === "COMPLETED") return null;
+  if (existing?.status === "COMPLETED" || existing?.status === "DEAD")
+    return null;
   if (
     existing &&
     existing.status === "RUNNING" &&

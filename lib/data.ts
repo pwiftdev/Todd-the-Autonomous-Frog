@@ -41,8 +41,8 @@ export async function getToddData(): Promise<ToddData> {
         orderBy: { version: "desc" },
       }),
       prisma.suggestion.findMany({
-        take: 12,
-        orderBy: [{ supportCount: "desc" }, { createdAt: "desc" }],
+        take: 20,
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
         include: { decisions: { take: 1, orderBy: { createdAt: "desc" } } },
       }),
       prisma.thought.findMany({ take: 8, orderBy: { createdAt: "desc" } }),

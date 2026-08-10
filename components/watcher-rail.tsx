@@ -1,14 +1,21 @@
-import { ArrowRight, Brain, Radio } from "lucide-react";
+import { ArrowRight, Brain, Eye, Radio, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { SuggestionForm } from "@/components/suggestion-form";
-import type { ToddData } from "@/lib/types";
+import type { PublicSuggestion, ToddData } from "@/lib/types";
 
 const time = (date: Date) =>
   new Intl.DateTimeFormat("en", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+
+const RESOLVED = new Set([
+  "ACCEPTED",
+  "REJECTED",
+  "MODIFIED",
+  "IMPLEMENTED",
+]);
 
 function RailSection({
   id,
@@ -34,14 +41,72 @@ function RailSection({
   );
 }
 
+function NowCard({
+  suggestion,
+  mode,
+}: {
+  suggestion: PublicSuggestion;
+  mode: "considering" | "resolved";
+}) {
+  const isConsidering = mode === "considering";
+  return (
+    <article
+      className={`rounded-xl border p-4 ${
+        isConsidering
+          ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]"
+          : "border rule bg-[var(--surface)]"
+      }`}
+    >
+      <div
+        className={`eyebrow flex items-center justify-between gap-2 ${
+          isConsidering ? "text-[var(--lime)]" : "text-[var(--muted)]"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          {isConsidering ? <Eye size={12} /> : <Sparkles size={12} />}
+          {isConsidering ? "todd is considering" : "todd just decided"}
+        </span>
+        <time>{time(suggestion.updatedAt ?? suggestion.createdAt)}</time>
+      </div>
+      <p className="mt-3 text-sm font-bold leading-5">“{suggestion.text}”</p>
+      {suggestion.decision && (
+        <p
+          className={`mt-3 text-sm leading-5 ${
+            isConsidering ? "text-[#9eafa0]" : "text-[var(--muted)]"
+          }`}
+        >
+          “{suggestion.decision.reasoningPublic}”
+        </p>
+      )}
+      {!isConsidering && (
+        <p className="eyebrow mt-3 text-[var(--muted)]">
+          {suggestion.status.toLowerCase()} · @
+          {suggestion.displayName.replace(/^@/, "")}
+        </p>
+      )}
+    </article>
+  );
+}
+
 export function WatcherRail({ data }: { data: ToddData }) {
   const latest = data.thoughts[0];
   const olderThoughts = data.thoughts.slice(1, 4);
-  const pendingish = data.suggestions.filter((s) =>
-    ["PENDING", "CONSIDERING"].includes(s.status),
-  );
-  const shownSuggestions =
-    pendingish.length > 0 ? pendingish.slice(0, 4) : data.suggestions.slice(0, 4);
+  const considering = data.suggestions.filter((s) => s.status === "CONSIDERING");
+  const resolved = data.suggestions
+    .filter((s) => RESOLVED.has(s.status) && s.decision)
+    .slice(0, 3);
+  const pending = data.suggestions.filter((s) => s.status === "PENDING");
+  const shownSuggestions = [...considering, ...pending, ...resolved].slice(0, 6);
+  const nowItems = [
+    ...considering.map((suggestion) => ({
+      suggestion,
+      mode: "considering" as const,
+    })),
+    ...resolved.slice(0, 2).map((suggestion) => ({
+      suggestion,
+      mode: "resolved" as const,
+    })),
+  ];
 
   return (
     <aside className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto overscroll-contain px-1 pb-8 lg:pr-1">
@@ -68,6 +133,16 @@ export function WatcherRail({ data }: { data: ToddData }) {
           {data.autonomyPaused ? <span>paused</span> : <span>autonomy on</span>}
         </div>
       </div>
+
+      {nowItems.length > 0 && (
+        <RailSection id="now" eyebrow="right now" title="suggestion desk">
+          <div className="grid gap-3">
+            {nowItems.map(({ suggestion, mode }) => (
+              <NowCard key={`${mode}-${suggestion.id}`} suggestion={suggestion} mode={mode} />
+            ))}
+          </div>
+        </RailSection>
+      )}
 
       <RailSection id="thoughts" eyebrow="brain" title="thoughts">
         {data.thoughts.length === 0 ? (
