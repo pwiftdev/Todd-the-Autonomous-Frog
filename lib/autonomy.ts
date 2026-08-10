@@ -1,9 +1,19 @@
 import { Prisma } from "@prisma/client";
 import { aiProvider } from "@/lib/ai/provider";
+import {
+  enqueueOutbox,
+  getActiveToddActivity,
+  resolveWorldActivity,
+  setToddActivity,
+} from "@/lib/activity";
+import { applyPersonalityDeltas, retrieveRelevantMemories } from "@/lib/memory";
 import { prisma } from "@/lib/prisma";
 import { socialProvider } from "@/lib/social/provider";
 import type { SiteConfigData } from "@/lib/types";
-import { evaluationSchema, type Evaluation } from "@/lib/validation";
+import { assertWithinTokenBudget, recordAiUsage } from "@/lib/usage";
+import { getMaxSocialPostsPerDay } from "@/lib/config";
+import { toddVoice } from "@/lib/todd-personality";
+import { evaluationSchema, normalizeEvaluation, type Evaluation } from "@/lib/validation";
 
 const allowedValues: Partial<Record<keyof SiteConfigData, readonly string[]>> =
   {
@@ -82,9 +92,20 @@ async function applyConfigAction(
       },
     });
   });
+
+  await enqueueOutbox("config.updated", {
+    key,
+    value,
+    decisionId,
+  });
 }
 
 export async function runDecisionCycle() {
+  if (!process.env.DATABASE_URL) {
+    return { message: "Database unavailable. Decision cycle skipped." };
+  }
+  await assertWithinTokenBudget();
+
   const suggestion = await prisma.suggestion.findFirst({
     where: { status: "PENDING" },
     orderBy: [{ supportCount: "desc" }, { createdAt: "asc" }],
@@ -93,6 +114,7 @@ export async function runDecisionCycle() {
     return {
       message: "No pending suggestions. Todd stared at the pond instead.",
     };
+
   const [state, personality, config, memories] = await Promise.all([
     prisma.toddState.findUnique({ where: { id: "todd" } }),
     prisma.personality.findUniqueOrThrow({ where: { id: "personality" } }),
@@ -100,12 +122,13 @@ export async function runDecisionCycle() {
       where: { isActive: true },
       orderBy: { version: "desc" },
     }),
-    prisma.memory.findMany({
-      take: 8,
-      orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
+    retrieveRelevantMemories({
+      category: suggestion.category,
+      suggestionText: suggestion.text,
     }),
   ]);
   if (state?.autonomyPaused) throw new Error("Todd's autonomy is paused.");
+
   await prisma.suggestion.update({
     where: { id: suggestion.id },
     data: { status: "CONSIDERING" },
@@ -137,60 +160,124 @@ export async function runDecisionCycle() {
       frogAccessory: config.frogAccessory,
       enabledSections: config.enabledSections as string[],
     } as SiteConfigData,
-    memories: memories.map((item) => item.content),
+    memories,
   };
+
   const run = await prisma.aiRun.create({
     data: { operation: "evaluateSuggestion", request },
   });
+
   try {
-    const evaluation = evaluationSchema.parse(
-      await aiProvider.evaluateSuggestion(request),
-    );
+    const ai = await aiProvider.evaluateSuggestion(request);
+    const evaluation = normalizeEvaluation(evaluationSchema.parse(ai.value));
+    evaluation.reasoningPublic = toddVoice(evaluation.reasoningPublic);
+    if (evaluation.thought) evaluation.thought = toddVoice(evaluation.thought);
+    if (evaluation.memoryToStore) {
+      evaluation.memoryToStore = toddVoice(evaluation.memoryToStore, 500);
+    }
+    await prisma.aiRun.update({
+      where: { id: run.id },
+      data: {
+        response: evaluation,
+        model: ai.usage?.model,
+        inputTokens: ai.usage?.inputTokens,
+        outputTokens: ai.usage?.outputTokens,
+        latencyMs: ai.usage?.latencyMs,
+      },
+    });
+    await recordAiUsage({
+      operation: "evaluateSuggestion",
+      usage: ai.usage,
+      aiRunId: run.id,
+    });
+
     const status = {
       accept: "ACCEPTED",
       reject: "REJECTED",
       postpone: "PENDING",
       modify: "MODIFIED",
-    }[evaluation.decision] as "ACCEPTED" | "REJECTED" | "PENDING" | "MODIFIED";
+    }[evaluation.decision] as
+      | "ACCEPTED"
+      | "REJECTED"
+      | "PENDING"
+      | "MODIFIED";
+
     const decision = await prisma.decision.create({
       data: {
         suggestionId: suggestion.id,
         decision: evaluation.decision.toUpperCase() as
-          "ACCEPT" | "REJECT" | "POSTPONE" | "MODIFY",
+          | "ACCEPT"
+          | "REJECT"
+          | "POSTPONE"
+          | "MODIFY",
         confidence: evaluation.confidence,
         reasoningPublic: evaluation.reasoningPublic,
         rawResponse: evaluation,
       },
     });
+
     await applyConfigAction(evaluation, decision.id, suggestion.id);
+    await applyPersonalityDeltas(evaluation.personalityDeltas);
+
+    const thoughtContent =
+      evaluation.thought?.trim() || evaluation.reasoningPublic;
+    const thought = await prisma.thought.create({
+      data: {
+        content: thoughtContent,
+        eventType: evaluation.action ? "website_change" : "decision",
+      },
+    });
+
     await prisma.$transaction([
       prisma.suggestion.update({
         where: { id: suggestion.id },
         data: { status: evaluation.action ? "IMPLEMENTED" : status },
       }),
-      prisma.thought.create({
-        data: {
-          content: evaluation.reasoningPublic,
-          eventType: evaluation.action ? "website_change" : "decision",
-        },
-      }),
       ...(evaluation.memoryToStore
         ? [
             prisma.memory.create({
               data: {
-                type: "decision",
+                type: evaluation.memoryType ?? "decision",
                 content: evaluation.memoryToStore,
-                importance: 65,
+                importance: evaluation.memoryImportance ?? 65,
               },
             }),
           ]
         : []),
-      prisma.aiRun.update({
-        where: { id: run.id },
-        data: { response: evaluation },
-      }),
     ]);
-    return { message: evaluation.reasoningPublic };
+
+    const activityId =
+      (evaluation.activityId &&
+        resolveWorldActivity(evaluation.activityId)?.id) ||
+      (evaluation.action ? "change_website" : "make_decision");
+    await setToddActivity({
+      activityId,
+      reason: evaluation.reasoningPublic,
+      thoughtId: thought.id,
+    });
+
+    await enqueueOutbox("decision.made", {
+      suggestionId: suggestion.id,
+      decision: evaluation.decision,
+      reasoningPublic: evaluation.reasoningPublic,
+    });
+
+    if (["accept", "modify"].includes(evaluation.decision)) {
+      await enqueueOutbox("social.consider", {
+        event: evaluation.reasoningPublic,
+        suggestionId: suggestion.id,
+      });
+    }
+
+    await prisma.toddState.update({
+      where: { id: "todd" },
+      data: {
+        nextDecisionAt: new Date(Date.now() + 5 * 60_000),
+        currentMood: config.frogMood,
+      },
+    });
+
+    return { message: evaluation.reasoningPublic, decisionId: decision.id };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown evaluation error";
@@ -213,22 +300,281 @@ export async function runDecisionCycle() {
   }
 }
 
-export async function runSocialCycle() {
-  const latest = await prisma.thought.findFirst({
-    orderBy: { createdAt: "desc" },
+export async function runObservationCycle() {
+  if (!process.env.DATABASE_URL) {
+    return { message: "Database unavailable." };
+  }
+  await assertWithinTokenBudget();
+  const state = await prisma.toddState.findUnique({ where: { id: "todd" } });
+  if (state?.autonomyPaused) throw new Error("Todd's autonomy is paused.");
+
+  const pending = await prisma.suggestion.count({
+    where: { status: "PENDING" },
   });
-  const content = await aiProvider.generateSocialPost(
-    latest?.content ?? "The pond is quiet.",
-  );
-  const posted = await socialProvider.post(content);
-  await prisma.socialPost.create({
+  const event =
+    pending > 0
+      ? `${pending} suggestions waiting in the pond`
+      : "the swamp is quiet and under control";
+
+  const run = await prisma.aiRun.create({
+    data: { operation: "generateThought", request: { event } },
+  });
+  try {
+    const ai = await aiProvider.generateThought(event);
+    const thoughtText = toddVoice(ai.value);
+    await prisma.aiRun.update({
+      where: { id: run.id },
+      data: {
+        response: { thought: ai.value },
+        model: ai.usage?.model,
+        inputTokens: ai.usage?.inputTokens,
+        outputTokens: ai.usage?.outputTokens,
+        latencyMs: ai.usage?.latencyMs,
+      },
+    });
+    await recordAiUsage({
+      operation: "generateThought",
+      usage: ai.usage,
+      aiRunId: run.id,
+    });
+
+    const thought = await prisma.thought.create({
+      data: { content: thoughtText, eventType: "observation" },
+    });
+    await setToddActivity({
+      activityId: "deep_thought",
+      reason: thoughtText,
+      thoughtId: thought.id,
+    });
+    await prisma.toddState.update({
+      where: { id: "todd" },
+      data: { lastObservationAt: new Date() },
+    });
+    await enqueueOutbox("thought.created", {
+      id: thought.id,
+      content: thought.content,
+    });
+    return { message: thoughtText };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Observation failed";
+    await prisma.aiRun.update({ where: { id: run.id }, data: { error: message } });
+    throw error;
+  }
+}
+
+export async function runSocialCycle(forcedEvent?: string) {
+  if (!process.env.DATABASE_URL) {
+    return { message: "Database unavailable." };
+  }
+  const state = await prisma.toddState.findUnique({ where: { id: "todd" } });
+  if (state?.autonomyPaused) throw new Error("Todd's autonomy is paused.");
+
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  const postedToday = await prisma.socialPost.count({
+    where: { createdAt: { gte: start } },
+  });
+  if (postedToday >= getMaxSocialPostsPerDay()) {
+    return { message: "Social quota reached for today." };
+  }
+
+  const style = await prisma.socialStyle.findUnique({
+    where: { id: "social-style" },
+  });
+  const latest =
+    forcedEvent ??
+    (
+      await prisma.thought.findFirst({
+        orderBy: { createdAt: "desc" },
+      })
+    )?.content ??
+    "The pond is quiet.";
+
+  const run = await prisma.aiRun.create({
     data: {
-      content,
-      provider: process.env.SOCIAL_PROVIDER ?? "mock",
-      externalId: posted.id,
+      operation: "generateSocialPost",
+      request: { event: latest, style },
     },
   });
-  return { message: content };
+
+  try {
+    const ai = await aiProvider.generateSocialPost(latest);
+    const content = toddVoice(ai.value, style?.maxLength ?? 160);
+
+    await prisma.aiRun.update({
+      where: { id: run.id },
+      data: {
+        response: { content },
+        model: ai.usage?.model,
+        inputTokens: ai.usage?.inputTokens,
+        outputTokens: ai.usage?.outputTokens,
+        latencyMs: ai.usage?.latencyMs,
+      },
+    });
+    await recordAiUsage({
+      operation: "generateSocialPost",
+      usage: ai.usage,
+      aiRunId: run.id,
+    });
+
+    const posted = await socialProvider.post(content);
+    await prisma.socialPost.create({
+      data: {
+        content,
+        provider: process.env.SOCIAL_PROVIDER ?? "mock",
+        externalId: posted.id,
+        status: process.env.X_LIVE === "1" ? "POSTED" : "POSTED",
+      },
+    });
+    await setToddActivity({
+      activityId: "write_social_post",
+      reason: content,
+    });
+    await prisma.toddState.update({
+      where: { id: "todd" },
+      data: { lastSocialAt: new Date() },
+    });
+    await enqueueOutbox("social.posted", { content, externalId: posted.id });
+    return { message: content };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Social cycle failed";
+    await prisma.aiRun.update({ where: { id: run.id }, data: { error: message } });
+    await prisma.auditLog.create({
+      data: {
+        event: "SOCIAL_FAILED",
+        actor: "todd",
+        success: false,
+        metadata: { error: message },
+      },
+    });
+    // Social failure must not undo prior decisions.
+    return { message: `Social delivery failed: ${message}` };
+  }
+}
+
+export async function runDailyReflection() {
+  if (!process.env.DATABASE_URL) {
+    return { message: "Database unavailable." };
+  }
+  await assertWithinTokenBudget();
+  const state = await prisma.toddState.findUnique({ where: { id: "todd" } });
+  if (state?.autonomyPaused) throw new Error("Todd's autonomy is paused.");
+
+  const [decisions, thoughts, memories] = await Promise.all([
+    prisma.decision.findMany({
+      take: 12,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.thought.findMany({ take: 8, orderBy: { createdAt: "desc" } }),
+    prisma.memory.findMany({
+      take: 8,
+      orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
+    }),
+  ]);
+  const summary = JSON.stringify({
+    decisions: decisions.map((d) => d.reasoningPublic),
+    thoughts: thoughts.map((t) => t.content),
+    memories: memories.map((m) => m.content),
+  }).slice(0, 4000);
+
+  const run = await prisma.aiRun.create({
+    data: { operation: "generateReflection", request: { summary } },
+  });
+
+  const fallback = {
+    journal: toddVoice(
+      `reviewed ${decisions.length} decisions. still a frog. pond ok.`,
+      800,
+    ),
+    thought: toddVoice("day was mid. im still him"),
+    personalityDeltas: {
+      curiosity: 1,
+      stubbornness: 0,
+      chaos: 0,
+      confidence: 0,
+      friendliness: 0,
+    },
+  };
+
+  try {
+    const ai = aiProvider.generateReflection
+      ? await aiProvider.generateReflection(summary)
+      : { value: fallback, usage: undefined };
+    const value = {
+      journal: toddVoice(ai.value.journal, 800),
+      thought: toddVoice(ai.value.thought),
+      personalityDeltas: ai.value.personalityDeltas,
+    };
+    await prisma.aiRun.update({
+      where: { id: run.id },
+      data: {
+        response: value,
+        model: ai.usage?.model,
+        inputTokens: ai.usage?.inputTokens,
+        outputTokens: ai.usage?.outputTokens,
+        latencyMs: ai.usage?.latencyMs,
+      },
+    });
+    await recordAiUsage({
+      operation: "generateReflection",
+      usage: ai.usage,
+      aiRunId: run.id,
+    });
+    await prisma.dailyJournal.create({ data: { content: value.journal } });
+    const thought = await prisma.thought.create({
+      data: { content: value.thought, eventType: "reflection" },
+    });
+    await applyPersonalityDeltas(value.personalityDeltas);
+    await setToddActivity({
+      activityId: "night_journal",
+      reason: value.thought,
+      thoughtId: thought.id,
+    });
+    await prisma.toddState.update({
+      where: { id: "todd" },
+      data: { lastReflectionAt: new Date() },
+    });
+    return { message: value.thought };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Reflection failed";
+    await prisma.aiRun.update({ where: { id: run.id }, data: { error: message } });
+    throw error;
+  }
+}
+
+export async function runMemoryMaintenance() {
+  if (!process.env.DATABASE_URL) {
+    return { message: "Database unavailable." };
+  }
+  const memories = await prisma.memory.findMany({
+    orderBy: { createdAt: "asc" },
+  });
+  let decayed = 0;
+  for (const memory of memories) {
+    if (memory.importance <= 20) continue;
+    const ageDays =
+      (Date.now() - memory.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (ageDays < 3) continue;
+    await prisma.memory.update({
+      where: { id: memory.id },
+      data: { importance: Math.max(10, memory.importance - 1) },
+    });
+    decayed += 1;
+  }
+  return { message: `Decayed ${decayed} memories.` };
+}
+
+export async function ensureRoomActivity() {
+  if (!process.env.DATABASE_URL) return { message: "Database unavailable." };
+  const active = await getActiveToddActivity();
+  if (active) return { message: `Active: ${active.activityId}` };
+  await setToddActivity({
+    activityId: "deep_thought",
+    reason: "No active plan. Contemplating the pond.",
+  });
+  return { message: "Started deep_thought" };
 }
 
 export async function rollbackLatestConfig() {
@@ -264,4 +610,5 @@ export async function rollbackLatestConfig() {
       },
     });
   });
+  await enqueueOutbox("config.rolled_back", { at: new Date().toISOString() });
 }

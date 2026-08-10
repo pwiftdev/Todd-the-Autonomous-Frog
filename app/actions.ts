@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   runDecisionCycle,
+  runObservationCycle,
   runSocialCycle,
   rollbackLatestConfig,
 } from "@/lib/autonomy";
@@ -17,6 +18,7 @@ import {
   requireAdmin,
   verifyAdminSecret,
 } from "@/lib/admin-auth";
+import { runBrainTick } from "@/lib/worker/tick";
 
 export type ActionState = { ok: boolean; message: string };
 
@@ -46,7 +48,20 @@ export async function submitSuggestion(
           parsed.error.issues[0]?.message ?? "Todd rejected the wording.",
       };
     }
-    await prisma.suggestion.create({ data: parsed.data });
+    await prisma.$transaction(async (tx) => {
+      const suggestion = await tx.suggestion.create({ data: parsed.data });
+      await tx.outboxEvent.create({
+        data: {
+          type: "suggestion.created",
+          payload: {
+            suggestionId: suggestion.id,
+            text: suggestion.text,
+            category: suggestion.category,
+            supportCount: suggestion.supportCount,
+          },
+        },
+      });
+    });
     revalidatePath("/");
     revalidatePath("/suggestions");
     return { ok: true, message: "Submitted. Todd owes you nothing." };
@@ -75,9 +90,18 @@ export async function supportSuggestion(id: string) {
       await tx.suggestionSupport.create({
         data: { suggestionId: id, fingerprint },
       });
-      await tx.suggestion.update({
+      const suggestion = await tx.suggestion.update({
         where: { id },
         data: { supportCount: { increment: 1 } },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          type: "suggestion.supported",
+          payload: {
+            suggestionId: suggestion.id,
+            supportCount: suggestion.supportCount,
+          },
+        },
       });
     });
   } catch {}
@@ -129,6 +153,18 @@ export async function triggerDecision() {
 export async function triggerSocial() {
   await requireAdmin();
   await runSocialCycle();
+  revalidatePath("/", "layout");
+}
+
+export async function triggerObservation() {
+  await requireAdmin();
+  await runObservationCycle();
+  revalidatePath("/", "layout");
+}
+
+export async function triggerBrainTick() {
+  await requireAdmin();
+  await runBrainTick(`admin_${Date.now()}`);
   revalidatePath("/", "layout");
 }
 

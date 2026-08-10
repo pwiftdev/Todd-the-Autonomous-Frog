@@ -6,7 +6,12 @@ export type SuggestionStatus =
   | "MODIFIED"
   | "IMPLEMENTED";
 export type SuggestionCategory =
-  "WEBSITE" | "PERSONALITY" | "SOCIAL" | "APPEARANCE" | "FEATURE" | "OTHER";
+  | "WEBSITE"
+  | "PERSONALITY"
+  | "SOCIAL"
+  | "APPEARANCE"
+  | "FEATURE"
+  | "OTHER";
 
 export type SiteConfigData = {
   theme: "classic_swamp" | "midnight_swamp" | "misty_pond";
@@ -36,7 +41,20 @@ export type PublicSuggestion = {
   } | null;
 };
 
+export type CurrentActivity = {
+  activityId: string;
+  room: string;
+  label: string;
+  reason: string;
+  startAt: Date;
+  endAt: Date;
+};
+
 export type ToddData = {
+  mode: "demo" | "live";
+  dayNumber: number;
+  createdAt: Date;
+  currentActivity: CurrentActivity | null;
   config: SiteConfigData;
   suggestions: PublicSuggestion[];
   thoughts: Array<{

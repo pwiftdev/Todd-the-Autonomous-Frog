@@ -1,9 +1,26 @@
-import { prisma } from "@/lib/prisma";
+import { getActiveToddActivity } from "@/lib/activity";
+import { assertLiveDatabase, getAppMode, hasDatabase } from "@/lib/config";
 import { defaultToddData } from "@/lib/default-data";
+import { prisma } from "@/lib/prisma";
 import type { SiteConfigData, ToddData } from "@/lib/types";
 
+function dayNumberFrom(createdAt: Date) {
+  const ms = Date.now() - createdAt.getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
 export async function getToddData(): Promise<ToddData> {
-  if (!process.env.DATABASE_URL) return defaultToddData;
+  assertLiveDatabase();
+  const mode = getAppMode();
+
+  if (!hasDatabase()) {
+    if (mode === "live") {
+      throw new Error("Live mode requires DATABASE_URL.");
+    }
+    // Demo-only empty Day 0 shell — no fabricated community history.
+    return defaultToddData;
+  }
+
   try {
     const [
       config,
@@ -14,6 +31,10 @@ export async function getToddData(): Promise<ToddData> {
       personality,
       state,
       decisionCount,
+      acceptedCount,
+      actionCount,
+      postCount,
+      activity,
     ] = await Promise.all([
       prisma.siteConfig.findFirst({
         where: { isActive: true },
@@ -35,16 +56,47 @@ export async function getToddData(): Promise<ToddData> {
       prisma.personality.findUnique({ where: { id: "personality" } }),
       prisma.toddState.findUnique({ where: { id: "todd" } }),
       prisma.decision.count(),
+      prisma.suggestion.count({
+        where: { status: { in: ["ACCEPTED", "MODIFIED", "IMPLEMENTED"] } },
+      }),
+      prisma.action.count({ where: { revertedAt: null } }),
+      prisma.socialPost.count(),
+      getActiveToddActivity(),
     ]);
 
-    if (!config || !personality || !state) return defaultToddData;
-    const accepted = suggestions.filter((item) =>
-      ["ACCEPTED", "MODIFIED", "IMPLEMENTED"].includes(item.status),
-    ).length;
+    if (!config || !personality || !state) {
+      if (mode === "live") {
+        throw new Error(
+          "Live database is missing Todd foundation data. Run npm run db:seed:genesis.",
+        );
+      }
+      return defaultToddData;
+    }
+
+    const dayNumber = dayNumberFrom(state.createdAt);
+    const announcement =
+      config.announcement ??
+      (dayNumber === 0
+        ? "DAY 0 · BIRTH"
+        : `DAY ${dayNumber} · AUTONOMY ONLINE`);
 
     return {
+      mode,
+      dayNumber,
+      createdAt: state.createdAt,
+      currentActivity: activity
+        ? {
+            activityId: activity.activityId,
+            room: activity.room,
+            label: activity.label,
+            reason: activity.reason,
+            startAt: activity.startAt,
+            endAt: activity.endAt,
+          }
+        : null,
       config: {
         ...config,
+        announcement,
         enabledSections: config.enabledSections as string[],
       } as SiteConfigData,
       suggestions: suggestions.map((item) => ({
@@ -72,13 +124,15 @@ export async function getToddData(): Promise<ToddData> {
       stats: {
         decisions: decisionCount,
         reviewed: decisionCount,
-        accepted,
-        changes: actions.length,
-        posts: socialPosts.length,
+        accepted: acceptedCount,
+        changes: actionCount,
+        posts: postCount,
       },
       autonomyPaused: state.autonomyPaused,
     };
-  } catch {
+  } catch (error) {
+    // Live must never silently substitute fabricated history.
+    if (mode === "live") throw error;
     return defaultToddData;
   }
 }

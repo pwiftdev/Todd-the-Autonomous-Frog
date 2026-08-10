@@ -363,18 +363,83 @@ function calculateNeeds(activity: WorldActivity, now: number | null) {
 export function ToddRoom({
   thought,
   requestedActivityId,
+  liveSync = true,
+  embed = false,
 }: {
   thought: string;
   requestedActivityId?: string;
+  liveSync?: boolean;
+  /** Dashboard pane mode: no marketing chrome, fills parent height. */
+  embed?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [traveling, setTraveling] = useState(false);
+  const [liveActivityId, setLiveActivityId] = useState<string | undefined>(
+    requestedActivityId,
+  );
+  const [liveThought, setLiveThought] = useState(thought);
   const visible = useVisibility(container);
+
+  useEffect(() => {
+    setLiveActivityId(requestedActivityId);
+  }, [requestedActivityId]);
+
+  useEffect(() => {
+    setLiveThought(thought);
+  }, [thought]);
+
+  useEffect(() => {
+    if (!liveSync || typeof window === "undefined") return;
+    const source = new EventSource("/api/events");
+    const onActivity = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as {
+          activityId?: string;
+          reason?: string;
+        };
+        if (payload.activityId) setLiveActivityId(payload.activityId);
+        if (payload.reason) setLiveThought(payload.reason);
+      } catch {
+        /* ignore malformed */
+      }
+    };
+    const onThought = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as { content?: string };
+        if (payload.content) setLiveThought(payload.content);
+      } catch {
+        /* ignore */
+      }
+    };
+    const onHello = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as {
+          activity?: { activityId?: string; reason?: string } | null;
+        };
+        if (payload.activity?.activityId) {
+          setLiveActivityId(payload.activity.activityId);
+        }
+        if (payload.activity?.reason) {
+          setLiveThought(payload.activity.reason);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    source.addEventListener("hello", onHello);
+    source.addEventListener("activity.updated", onActivity);
+    source.addEventListener("thought.created", onThought);
+    source.onerror = () => {
+      /* browser will reconnect */
+    };
+    return () => source.close();
+  }, [liveSync]);
+
   const {
     index: scheduledIndex,
     remaining,
     now,
-  } = useSharedWorldState(visible, thought, requestedActivityId);
+  } = useSharedWorldState(visible, liveThought, liveActivityId);
   const [lockedActivityIndex, setLockedActivityIndex] = useState<number | null>(
     null,
   );
@@ -387,8 +452,14 @@ export function ToddRoom({
     [activeIndex],
   );
   const activity = worldActivities[activeIndex];
-  const activityRemaining =
-    activeIndex === scheduledIndex ? `${remaining}s` : "finishing route";
+  const brainDriven = Boolean(liveActivityId);
+  const activityRemaining = brainDriven
+    ? traveling
+      ? "en route"
+      : "brain-directed"
+    : activeIndex === scheduledIndex
+      ? `${remaining}s`
+      : "finishing route";
   const activityTitle = traveling
     ? `Walking to ${roomNames[activity.room]}`
     : activity.label;
@@ -405,125 +476,115 @@ export function ToddRoom({
     request?.catch(() => undefined);
   };
 
-  return (
-    <section
-      id="todd-house"
-      ref={container}
-      className="mx-2 py-20 md:mx-4 md:py-28"
+  const scene = (
+    <div
+      className={`flex h-full min-h-0 flex-col overflow-hidden bg-[#101f18] ${
+        embed
+          ? "rounded-[1.5rem] md:rounded-[2rem]"
+          : "rounded-[2rem] shadow-[0_45px_120px_rgba(7,24,14,.25)] md:rounded-[3rem]"
+      }`}
     >
-      <div className="shell mb-10 grid gap-6 md:grid-cols-[1fr_390px] md:items-end">
-        <div>
-          <p className="eyebrow mb-5 flex items-center gap-3">
-            <span className="micro-dot" />
-            02 / Autonomous world
-          </p>
-          <h2 className="display max-w-5xl text-6xl uppercase leading-[.78] md:text-8xl lg:text-9xl">
-            The house that Todd built.
-          </h2>
+      <div
+        data-mobile-activity-status="true"
+        className={`border-b border-white/10 bg-[#0b1811] px-4 py-3 text-[#eff5d9] ${
+          embed ? "lg:hidden" : "md:hidden"
+        }`}
+        aria-live="polite"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="eyebrow flex items-center gap-2 text-[var(--lime)]">
+              <Radio size={12} />
+              Todd is {traveling ? "walking" : "live"} ·{" "}
+              {night ? "Night" : "Day"}
+              {brainDriven ? " · brain" : ""}
+            </p>
+            <h3 className="mt-2 truncate text-lg font-bold">{activityTitle}</h3>
+          </div>
+          <span className="eyebrow flex shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-[#aebcaf]">
+            <Clock3 size={12} />
+            {activityRemaining}
+          </span>
         </div>
-        <p className="text-sm leading-6 text-[var(--muted)]">
-          Twelve spaces. Ninety-six possible activities. One frog deciding where
-          his attention belongs next.
+        <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#aebcaf]">
+          {activity.detail}
+        </p>
+        <p className="eyebrow mt-3 text-[#7f9182]">
+          {roomNames[activity.room]}
         </p>
       </div>
-      <div className="overflow-hidden rounded-[2rem] bg-[#101f18] shadow-[0_45px_120px_rgba(7,24,14,.25)] md:rounded-[3rem]">
+      <div
+        data-todd-world-scene="true"
+        className={`relative min-h-0 flex-1 ${
+          embed ? "h-full min-h-[420px]" : "h-[620px] md:h-[820px]"
+        }`}
+      >
+        {visible ? (
+          <Canvas
+            dpr={[1, 1.5]}
+            camera={{ position: [20, 15, 24], fov: 34 }}
+            gl={{ antialias: true, powerPreference: "high-performance" }}
+            shadows
+          >
+            <WorldScene
+              activity={activity}
+              night={night}
+              isTraveling={traveling}
+              onTravelChange={handleTravelChange}
+            />
+          </Canvas>
+        ) : (
+          <div className="swamp-grid h-full animate-pulse bg-[#15271e]" />
+        )}
         <div
-          data-mobile-activity-status="true"
-          className="border-b border-white/10 bg-[#0b1811] px-5 py-4 text-[#eff5d9] md:hidden"
-          aria-live="polite"
+          data-desktop-activity-overlay="true"
+          className={`glass-dark pointer-events-none absolute left-4 top-4 hidden max-w-[320px] rounded-2xl p-4 text-[#eff5d9] ${
+            embed ? "lg:block" : "md:block"
+          }`}
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="eyebrow flex items-center gap-2 text-[var(--lime)]">
-                <Radio size={12} />
-                Todd is {traveling ? "walking" : "live"} ·{" "}
-                {night ? "Night" : "Day"}
-              </p>
-              <h3 className="mt-2 truncate text-lg font-bold">{activityTitle}</h3>
-            </div>
-            <span className="eyebrow flex shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-[#aebcaf]">
+          <p className="eyebrow flex items-center gap-3 text-[var(--lime)]">
+            <Radio size={13} />
+            Todd is {traveling ? "walking" : "live"} · {night ? "Night" : "Day"}
+            {brainDriven ? " · brain" : ""}
+          </p>
+          <h3 className="mt-3 text-xl font-bold md:text-2xl">{activityTitle}</h3>
+          <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#aebcaf]">
+            {activity.detail}
+          </p>
+          <div className="eyebrow mt-3 flex items-center justify-between border-t border-white/15 pt-3 text-[#aebcaf]">
+            <span>{roomNames[activity.room]}</span>
+            <span className="flex items-center gap-2">
               <Clock3 size={12} />
               {activityRemaining}
             </span>
           </div>
-          <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#aebcaf]">
-            {activity.detail}
-          </p>
-          <p className="eyebrow mt-3 text-[#7f9182]">
-            {roomNames[activity.room]}
-          </p>
         </div>
-        <div
-          data-todd-world-scene="true"
-          className="relative h-[620px] md:h-[820px]"
+        <button
+          onClick={openFullscreen}
+          className="button glass-dark absolute right-3 top-3 z-10 min-h-0 border-white/15 px-3 py-2 text-[#eff5d9] md:right-4 md:top-4"
+          aria-label="View house fullscreen"
         >
-          {visible ? (
-            <Canvas
-              dpr={[1, 1.5]}
-              camera={{ position: [20, 15, 24], fov: 34 }}
-              gl={{ antialias: true, powerPreference: "high-performance" }}
-              shadows
-            >
-              <WorldScene
-                activity={activity}
-                night={night}
-                isTraveling={traveling}
-                onTravelChange={handleTravelChange}
-              />
-            </Canvas>
-          ) : (
-            <div className="swamp-grid h-full animate-pulse bg-[#15271e]" />
-          )}
-          <div
-            data-desktop-activity-overlay="true"
-            className="glass-dark pointer-events-none absolute left-6 top-6 hidden max-w-[390px] rounded-2xl p-5 text-[#eff5d9] md:block"
-          >
-            <p className="eyebrow flex items-center gap-3 text-[var(--lime)]">
-              <Radio size={13} />
-              Todd is {traveling ? "walking" : "live"} ·{" "}
-              {night ? "Night" : "Day"}
-            </p>
-            <h3 className="mt-4 text-2xl font-bold">{activityTitle}</h3>
-            <p className="mt-2 text-sm leading-5 text-[#aebcaf]">
-              {activity.detail}
-            </p>
-            <div className="eyebrow mt-4 flex items-center justify-between border-t border-white/15 pt-4 text-[#aebcaf]">
-              <span>{roomNames[activity.room]}</span>
-              <span className="flex items-center gap-2">
-                <Clock3 size={12} />
-                {activityRemaining}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={openFullscreen}
-            className="button glass-dark absolute right-3 top-3 z-10 min-h-0 border-white/15 px-4 py-3 text-[#eff5d9] md:right-6 md:top-6"
-            aria-label="View house fullscreen"
-          >
-            <Expand size={16} />
-            <span className="hidden sm:inline">Fullscreen</span>
-          </button>
-          <div className="glass-dark pointer-events-none absolute bottom-3 right-3 hidden max-w-[390px] rounded-2xl p-5 text-[#eff5d9] lg:block">
-            <p className="eyebrow flex items-center gap-2 text-[#aebcaf]">
-              <Sparkles size={12} />
-              Thought behind the action
-            </p>
-            <p className="mt-3 text-sm font-semibold leading-5">“{thought}”</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {activity.activators.map((activator) => (
-                <span
-                  key={activator}
-                  className="eyebrow rounded-full border border-white/15 px-2 py-1 text-[var(--lime)]"
-                >
-                  {activator}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="eyebrow pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-white/60 backdrop-blur md:block">
-            Drag to orbit · Scroll to zoom
-          </div>
+          <Expand size={16} />
+          <span className="hidden sm:inline">Fullscreen</span>
+        </button>
+        <div
+          className={`glass-dark pointer-events-none absolute bottom-3 right-3 max-w-[300px] rounded-2xl p-4 text-[#eff5d9] ${
+            embed ? "hidden xl:block" : "hidden lg:block"
+          }`}
+        >
+          <p className="eyebrow flex items-center gap-2 text-[#aebcaf]">
+            <Sparkles size={12} />
+            Thought behind the action
+          </p>
+          <p className="mt-2 line-clamp-3 text-sm font-semibold leading-5">
+            “{liveThought}”
+          </p>
         </div>
+        <div className="eyebrow pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-white/60 backdrop-blur md:block">
+          Drag to orbit · Scroll to zoom
+        </div>
+      </div>
+      {!embed && (
         <div className="border-t border-white/10 bg-[#0b1811] text-[#eff5d9]">
           <div className="grid gap-px bg-white/10 lg:grid-cols-[1.35fr_1fr]">
             <div className="bg-[#0b1811] p-5 md:p-7">
@@ -587,7 +648,40 @@ export function ToddRoom({
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+
+  if (embed) {
+    return (
+      <div id="todd-house" ref={container} className="h-full min-h-[520px]">
+        {scene}
       </div>
+    );
+  }
+
+  return (
+    <section
+      id="todd-house"
+      ref={container}
+      className="mx-2 py-20 md:mx-4 md:py-28"
+    >
+      <div className="shell mb-10 grid gap-6 md:grid-cols-[1fr_390px] md:items-end">
+        <div>
+          <p className="eyebrow mb-5 flex items-center gap-3">
+            <span className="micro-dot" />
+            02 / Autonomous world
+          </p>
+          <h2 className="display max-w-5xl text-6xl uppercase leading-[.78] md:text-8xl lg:text-9xl">
+            The house that Todd built.
+          </h2>
+        </div>
+        <p className="text-sm leading-6 text-[var(--muted)]">
+          Twelve spaces. Ninety-six possible activities. One frog deciding where
+          his attention belongs next.
+        </p>
+      </div>
+      {scene}
     </section>
   );
 }

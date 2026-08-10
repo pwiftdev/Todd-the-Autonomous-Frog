@@ -1,4 +1,6 @@
 import {
+  Brain,
+  Eye,
   LockKeyhole,
   Pause,
   Play,
@@ -11,10 +13,14 @@ import {
   adminLogin,
   rollbackConfig,
   toggleAutonomy,
+  triggerBrainTick,
   triggerDecision,
+  triggerObservation,
   triggerSocial,
 } from "@/app/actions";
 import { isAdmin } from "@/lib/admin-auth";
+import { getActiveToddActivity } from "@/lib/activity";
+import { tokensUsedToday } from "@/lib/usage";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -53,30 +59,44 @@ export default async function AdminPage({
       </main>
     );
 
-  const [state, memories, suggestions, runs, failures, config] =
-    await Promise.all([
-      prisma.toddState.findUniqueOrThrow({ where: { id: "todd" } }),
-      prisma.memory.findMany({ take: 12, orderBy: { createdAt: "desc" } }),
-      prisma.suggestion.findMany({
-        where: { status: { in: ["PENDING", "CONSIDERING"] } },
-        take: 12,
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.aiRun.findMany({ take: 8, orderBy: { createdAt: "desc" } }),
-      prisma.auditLog.findMany({
-        where: { success: false },
-        take: 8,
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.siteConfig.findFirstOrThrow({ where: { isActive: true } }),
-    ]);
+  const [
+    state,
+    memories,
+    suggestions,
+    runs,
+    failures,
+    config,
+    activity,
+    cycles,
+    tokens,
+  ] = await Promise.all([
+    prisma.toddState.findUniqueOrThrow({ where: { id: "todd" } }),
+    prisma.memory.findMany({ take: 12, orderBy: { createdAt: "desc" } }),
+    prisma.suggestion.findMany({
+      where: { status: { in: ["PENDING", "CONSIDERING"] } },
+      take: 12,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.aiRun.findMany({ take: 8, orderBy: { createdAt: "desc" } }),
+    prisma.auditLog.findMany({
+      where: { success: false },
+      take: 8,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.siteConfig.findFirstOrThrow({ where: { isActive: true } }),
+    getActiveToddActivity(),
+    prisma.brainCycle.findMany({ take: 8, orderBy: { createdAt: "desc" } }),
+    tokensUsedToday(),
+  ]);
   const controls = [
     {
       label: state.autonomyPaused ? "Resume autonomy" : "Pause autonomy",
       action: toggleAutonomy,
       icon: state.autonomyPaused ? Play : Pause,
     },
+    { label: "Run brain tick", action: triggerBrainTick, icon: Brain },
     { label: "Run decision cycle", action: triggerDecision, icon: Sparkles },
+    { label: "Run observation", action: triggerObservation, icon: Eye },
     { label: "Run social cycle", action: triggerSocial, icon: Send },
     { label: "Rollback config", action: rollbackConfig, icon: RotateCcw },
   ];
@@ -91,7 +111,7 @@ export default async function AdminPage({
           Public site
         </Link>
       </header>
-      <div className="mx-auto mt-6 grid max-w-7xl gap-5 lg:grid-cols-4">
+      <div className="mx-auto mt-6 grid max-w-7xl gap-5 md:grid-cols-2 lg:grid-cols-3">
         {controls.map(({ label, action, icon: Icon }) => (
           <form action={action} key={label}>
             <button className="card flex w-full items-center justify-between bg-white p-5 text-left transition-transform hover:-translate-y-1">
@@ -111,6 +131,13 @@ export default async function AdminPage({
                 activeConfigVersion: config.version,
                 provider: process.env.AI_PROVIDER ?? "mock",
                 socialProvider: process.env.SOCIAL_PROVIDER ?? "mock",
+                appMode: process.env.APP_MODE ?? "demo",
+                tokensUsedToday: tokens,
+                activity,
+                lastBrainTickAt: state.lastBrainTickAt,
+                lastObservationAt: state.lastObservationAt,
+                lastReflectionAt: state.lastReflectionAt,
+                lastSocialAt: state.lastSocialAt,
               },
               null,
               2,
@@ -139,12 +166,26 @@ export default async function AdminPage({
             />
           ))}
         </AdminPanel>
+        <AdminPanel title="Recent brain cycles">
+          {cycles.length ? (
+            cycles.map((item) => (
+              <Row
+                key={item.id}
+                title={`${item.jobType} · ${item.status}`}
+                meta={`${item.idempotencyKey} · ${item.createdAt.toLocaleString()}`}
+              />
+            ))
+          ) : (
+            <Empty>No brain cycles yet.</Empty>
+          )}
+        </AdminPanel>
         <AdminPanel title="Recent AI requests / responses">
           {runs.length ? (
             runs.map((item) => (
               <details key={item.id} className="border-t border-black/10 py-3">
                 <summary className="eyebrow cursor-pointer">
                   {item.operation} · {item.error ? "failed" : "complete"}
+                  {item.model ? ` · ${item.model}` : ""}
                 </summary>
                 <pre className="mt-3 max-h-64 overflow-auto text-[11px]">
                   {JSON.stringify(
@@ -152,6 +193,11 @@ export default async function AdminPage({
                       request: item.request,
                       response: item.response,
                       error: item.error,
+                      tokens: {
+                        input: item.inputTokens,
+                        output: item.outputTokens,
+                        latencyMs: item.latencyMs,
+                      },
                     },
                     null,
                     2,
@@ -178,12 +224,16 @@ export default async function AdminPage({
         </AdminPanel>
         <AdminPanel title="Scheduler">
           <p className="text-sm leading-6 text-[#687069]">
-            The protected cron endpoint checks the pending queue every five
-            minutes. All production AI and social credentials remain
-            server-side.
+            Cron and the durable brain worker both call the leased brain tick.
+            Local worker: npm run worker. Production cron hits the decision
+            route every minute.
           </p>
           <div className="mt-5 rounded-xl bg-[#172019] p-4 font-mono text-xs text-[#dce9d4]">
-            POST /api/cron/decision
+            GET /api/cron/decision
+            <br />
+            Authorization: Bearer CRON_SECRET
+            <br />
+            SSE /api/events
           </div>
         </AdminPanel>
       </div>

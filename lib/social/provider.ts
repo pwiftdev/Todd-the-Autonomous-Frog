@@ -1,15 +1,21 @@
-export interface SocialProvider {
-  post(text: string): Promise<{ id: string }>;
-  updateBio(text: string): Promise<void>;
-  updateDisplayName(text: string): Promise<void>;
-}
+import type { SocialProvider } from "@/lib/social/types";
+import { MockSocialProvider } from "@/lib/social/mock";
+import { XSocialProvider } from "@/lib/social/x";
 
-export class MockSocialProvider implements SocialProvider {
-  async post() {
-    return { id: `mock_${crypto.randomUUID()}` };
+export type { SocialProvider } from "@/lib/social/types";
+
+export function createSocialProvider(): SocialProvider {
+  const preferred = (process.env.SOCIAL_PROVIDER ?? "mock").toLowerCase();
+  if (
+    preferred === "x" &&
+    process.env.X_API_KEY &&
+    process.env.X_API_SECRET &&
+    process.env.X_ACCESS_TOKEN &&
+    process.env.X_ACCESS_SECRET
+  ) {
+    return new XSocialProvider();
   }
-  async updateBio() {}
-  async updateDisplayName() {}
+  return new MockSocialProvider();
 }
 
-export const socialProvider: SocialProvider = new MockSocialProvider();
+export const socialProvider: SocialProvider = createSocialProvider();

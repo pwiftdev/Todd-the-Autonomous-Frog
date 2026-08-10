@@ -1,65 +1,137 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  TODD_BIRTH_THOUGHT,
+  TODD_GENESIS_TRAITS,
+  TODD_IDENTITY_MEMORY,
+  TODD_SOCIAL_STYLE,
+} from "../lib/todd-personality";
 
 const prisma = new PrismaClient();
 
-async function main() {
+const foundation = {
+  personality: {
+    id: "personality" as const,
+    ...TODD_GENESIS_TRAITS,
+  },
+  socialStyle: {
+    id: "social-style" as const,
+    ...TODD_SOCIAL_STYLE,
+  },
+  siteConfig: {
+    version: 1,
+    isActive: true,
+    theme: "classic_swamp",
+    accent: "lime",
+    heroTitle: "TODD",
+    heroSubtitle: "an autonomous frog shaped by the internet.",
+    ctaCopy: "suggest something to todd",
+    announcement: "DAY 0 · BIRTH",
+    statusText: "awake",
+    frogMood: "suspicious",
+    frogAccessory: "none",
+    enabledSections: [
+      "thoughts",
+      "suggestions",
+      "decisions",
+      "changelog",
+      "social",
+    ],
+  },
+};
+
+export async function seedFoundation(options?: {
+  createdAt?: Date;
+  announcement?: string;
+  accessory?: string;
+}) {
   await prisma.toddState.upsert({
     where: { id: "todd" },
     update: {},
     create: {
       id: "todd",
-      createdAt: new Date(Date.now() - 14 * 86400000),
-      nextDecisionAt: new Date(Date.now() + 222000),
+      createdAt: options?.createdAt ?? new Date(),
+      nextDecisionAt: new Date(Date.now() + 60_000),
+      currentStatus: "Awake",
     },
   });
   await prisma.personality.upsert({
     where: { id: "personality" },
-    update: {},
-    create: {
-      id: "personality",
-      curiosity: 82,
-      stubbornness: 76,
-      chaos: 48,
-      confidence: 86,
-      friendliness: 58,
-    },
+    update: { ...TODD_GENESIS_TRAITS },
+    create: foundation.personality,
   });
   await prisma.socialStyle.upsert({
     where: { id: "social-style" },
-    update: {},
-    create: {
-      id: "social-style",
-      maxLength: 180,
-      emojiFrequency: "low",
-      tone: "dry",
-      lowercase: false,
-      replyFrequency: "medium",
-    },
+    update: { ...TODD_SOCIAL_STYLE },
+    create: foundation.socialStyle,
   });
   if ((await prisma.siteConfig.count()) === 0) {
     await prisma.siteConfig.create({
       data: {
-        version: 1,
-        isActive: true,
-        theme: "classic_swamp",
-        accent: "lime",
-        heroTitle: "TODD",
-        heroSubtitle: "An autonomous frog shaped by the internet.",
-        ctaCopy: "Suggest something to Todd",
-        announcement: "DAY 14 · AUTONOMY ONLINE",
-        statusText: "Thinking",
-        frogMood: "suspicious",
-        frogAccessory: "crown",
-        enabledSections: [
-          "thoughts",
-          "suggestions",
-          "decisions",
-          "changelog",
-          "social",
-        ],
+        ...foundation.siteConfig,
+        announcement:
+          options?.announcement ?? foundation.siteConfig.announcement,
+        frogAccessory:
+          options?.accessory ?? foundation.siteConfig.frogAccessory,
       },
     });
   }
+}
+
+export async function seedGenesis() {
+  await seedFoundation({
+    createdAt: new Date(),
+    announcement: "DAY 0 · BIRTH",
+    accessory: "none",
+  });
+
+  if ((await prisma.thought.count()) === 0) {
+    const thought = await prisma.thought.create({
+      data: {
+        content: TODD_BIRTH_THOUGHT,
+        eventType: "birth",
+      },
+    });
+    if ((await prisma.toddActivity.count()) === 0) {
+      await prisma.toddActivity.create({
+        data: {
+          activityId: "deep_thought",
+          room: "living",
+          label: "Thinking on the rug",
+          reason: TODD_BIRTH_THOUGHT,
+          thoughtId: thought.id,
+          status: "ACTIVE",
+          endAt: new Date(Date.now() + 10 * 60_000),
+        },
+      });
+    }
+  }
+
+  if ((await prisma.memory.count()) === 0) {
+    await prisma.memory.create({
+      data: {
+        type: "identity",
+        content: TODD_IDENTITY_MEMORY,
+        importance: 100,
+      },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      event: "GENESIS_SEEDED",
+      actor: "system",
+      metadata: { mode: "genesis" },
+    },
+  });
+}
+
+export async function seedDemo() {
+  await seedFoundation({
+    createdAt: new Date(Date.now() - 14 * 86400000),
+    announcement: "DAY 14 · AUTONOMY ONLINE",
+    accessory: "crown",
+  });
+
   if ((await prisma.suggestion.count()) === 0) {
     const crown = await prisma.suggestion.create({
       data: {
@@ -132,7 +204,8 @@ async function main() {
       },
     });
   }
-  if ((await prisma.thought.count()) === 0)
+
+  if ((await prisma.thought.count()) === 0) {
     await prisma.thought.createMany({
       data: [
         {
@@ -152,7 +225,9 @@ async function main() {
         },
       ],
     });
-  if ((await prisma.socialPost.count()) === 0)
+  }
+
+  if ((await prisma.socialPost.count()) === 0) {
     await prisma.socialPost.createMany({
       data: [
         {
@@ -166,7 +241,9 @@ async function main() {
         },
       ],
     });
-  if ((await prisma.memory.count()) === 0)
+  }
+
+  if ((await prisma.memory.count()) === 0) {
     await prisma.memory.createMany({
       data: [
         {
@@ -186,6 +263,45 @@ async function main() {
         },
       ],
     });
+  }
+
+  if ((await prisma.toddActivity.count()) === 0) {
+    await prisma.toddActivity.create({
+      data: {
+        activityId: "review_suggestions",
+        room: "office",
+        label: "Reviewing suggestions",
+        reason: "Demo seed activity",
+        status: "ACTIVE",
+        endAt: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+  }
+}
+
+async function main() {
+  // Live always boots from genesis. Demo history requires an explicit SEED_MODE=demo.
+  const seedMode = (process.env.SEED_MODE ?? "").toLowerCase();
+  const appMode = (process.env.APP_MODE ?? "demo").toLowerCase();
+  const useGenesis =
+    seedMode === "genesis" ||
+    seedMode === "live" ||
+    (seedMode === "" && appMode === "live");
+
+  if (useGenesis) {
+    await seedGenesis();
+    console.log("Seeded genesis / Day 0 Todd.");
+    return;
+  }
+
+  if (seedMode === "demo" || appMode === "demo") {
+    await seedDemo();
+    console.log("Seeded demo Todd history.");
+    return;
+  }
+
+  await seedGenesis();
+  console.log("Seeded genesis / Day 0 Todd (safe default).");
 }
 
 main().finally(() => prisma.$disconnect());

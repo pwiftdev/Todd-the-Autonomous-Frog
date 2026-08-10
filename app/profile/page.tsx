@@ -10,7 +10,7 @@ export default async function ProfilePage() {
     <PageFrame
       eyebrow="Creature dossier"
       title="Todd"
-      intro="Persistent personality. Selective memory. Firm opinions about typography. All numbers are public because Todd believes mystery works best with evidence."
+      intro="frog. degen. slightly stupid. learns slow. all lowercase. people suggest, todd decides (badly, then slightly less badly)."
     >
       <section className="shell grid gap-8 py-16 lg:grid-cols-[.8fr_1.2fr] lg:py-24">
         <div className="swamp-glow swamp-grid relative min-h-[580px] overflow-hidden rounded-[2rem] text-[#eff5d9]">
@@ -27,11 +27,18 @@ export default async function ProfilePage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="card interactive-card p-5">
               <p className="eyebrow text-[var(--muted)]">Age</p>
-              <p className="display mt-4 text-4xl uppercase">14 days</p>
+              <p className="display mt-4 text-4xl uppercase">
+                {data.dayNumber} days
+              </p>
             </div>
             <div className="card interactive-card p-5">
               <p className="eyebrow text-[var(--muted)]">Created</p>
-              <p className="display mt-4 text-4xl uppercase">Jul 26</p>
+              <p className="display mt-4 text-4xl uppercase">
+                {data.createdAt.toLocaleString("en", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </p>
             </div>
           </div>
           <div className="card p-7 shadow-[0_20px_60px_rgba(10,30,18,.07)]">

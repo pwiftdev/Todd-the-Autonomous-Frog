@@ -1,5 +1,8 @@
 import type { SiteConfigData } from "@/lib/types";
 import type { Evaluation } from "@/lib/validation";
+import { getAppMode } from "@/lib/config";
+import { MockAiProvider } from "@/lib/ai/mock";
+import { OpenAiProvider } from "@/lib/ai/openai";
 
 export type EvaluationContext = {
   suggestion: {
@@ -13,107 +16,46 @@ export type EvaluationContext = {
   memories: string[];
 };
 
+export type AiUsage = {
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  latencyMs?: number;
+};
+
+export type AiResult<T> = {
+  value: T;
+  usage?: AiUsage;
+};
+
 export interface AiProvider {
-  evaluateSuggestion(context: EvaluationContext): Promise<Evaluation>;
-  generateThought(event: string): Promise<string>;
-  generateSocialPost(event: string): Promise<string>;
+  evaluateSuggestion(
+    context: EvaluationContext,
+  ): Promise<AiResult<Evaluation>>;
+  generateThought(event: string): Promise<AiResult<string>>;
+  generateSocialPost(event: string): Promise<AiResult<string>>;
+  generateReflection?(summary: string): Promise<
+    AiResult<{
+      journal: string;
+      thought: string;
+      personalityDeltas?: Partial<Record<string, number>>;
+    }>
+  >;
 }
 
-const includesAny = (text: string, terms: string[]) =>
-  terms.some((term) => text.includes(term));
-
-export class MockAiProvider implements AiProvider {
-  async evaluateSuggestion({
-    suggestion,
-  }: EvaluationContext): Promise<Evaluation> {
-    const text = suggestion.text.toLowerCase();
-    const base = {
-      suggestionId: suggestion.id,
-      confidence: 0.88,
-      memoryToStore: null,
-    };
-
-    if (
-      includesAny(text, [
-        "comic sans",
-        "give me control",
-        "password",
-        "script",
-        "javascript",
-      ])
-    ) {
-      return {
-        ...base,
-        decision: "reject",
-        confidence: 0.99,
-        reasoningPublic: "I considered it. It was stupid. Rejected.",
-        action: null,
-      };
-    }
-    if (includesAny(text, ["dark", "night", "midnight"])) {
-      return {
-        ...base,
-        decision: "accept",
-        reasoningPublic: "The sun was becoming irritating.",
-        action: {
-          type: "site_config_update",
-          payload: { key: "theme", value: "midnight_swamp" },
-        },
-        memoryToStore: "Todd prefers darker swamp conditions.",
-      };
-    }
-    if (includesAny(text, ["crown", "king"])) {
-      return {
-        ...base,
-        decision: "accept",
-        reasoningPublic: `${suggestion.supportCount || "Several"} humans support this. Compelling evidence.`,
-        action: {
-          type: "site_config_update",
-          payload: { key: "frogAccessory", value: "crown" },
-        },
-        memoryToStore: "Todd has accepted the crown as appropriate attire.",
-      };
-    }
-    if (includesAny(text, ["neon", "every button", "all green"])) {
-      return {
-        ...base,
-        decision: "modify",
-        reasoningPublic: "Most of them. Not all. I have standards.",
-        action: {
-          type: "site_config_update",
-          payload: { key: "accent", value: "lime" },
-        },
-        memoryToStore: "Todd tolerates green accents, not green excess.",
-      };
-    }
-    if (includesAny(text, ["happy", "smile", "friendly"])) {
-      return {
-        ...base,
-        decision: "modify",
-        reasoningPublic: "I will look pleased. Briefly.",
-        action: {
-          type: "site_config_update",
-          payload: { key: "frogMood", value: "pleased" },
-        },
-        memoryToStore: "Todd briefly experimented with appearing approachable.",
-      };
-    }
-    return {
-      ...base,
-      decision: "reject",
-      confidence: 0.74,
-      reasoningPublic: "Interesting pressure. Insufficient argument.",
-      action: null,
-    };
+export function createAiProvider(): AiProvider {
+  const preferred = (process.env.AI_PROVIDER ?? "mock").toLowerCase();
+  if (preferred === "openai" && process.env.OPENAI_API_KEY) {
+    return new OpenAiProvider();
   }
-
-  async generateThought(event: string) {
-    return `I have reviewed the situation: ${event.toLowerCase()}. The pond remains under control.`;
+  if (preferred === "openai" && getAppMode() === "live") {
+    console.warn(
+      "[todd] AI_PROVIDER=openai but OPENAI_API_KEY is missing; using mock.",
+    );
   }
-
-  async generateSocialPost(event: string) {
-    return `${event.slice(0, 130)}\n\nI decided correctly.`;
-  }
+  return new MockAiProvider();
 }
 
-export const aiProvider: AiProvider = new MockAiProvider();
+export const aiProvider: AiProvider = createAiProvider();
+
+export { MockAiProvider, OpenAiProvider };

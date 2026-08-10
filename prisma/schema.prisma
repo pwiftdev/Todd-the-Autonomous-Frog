@@ -32,16 +32,44 @@ enum DecisionKind {
   MODIFY
 }
 
+enum BrainJobType {
+  TICK
+  SUGGESTION_REVIEW
+  OBSERVATION
+  SOCIAL
+  DAILY_REFLECTION
+  MEMORY_MAINTENANCE
+  ROOM_TRANSITION
+}
+
+enum BrainCycleStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD
+}
+
+enum ActivityStatus {
+  ACTIVE
+  COMPLETED
+  INTERRUPTED
+}
+
 model ToddState {
-  id             String   @id @default("todd")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  currentMood    String   @default("suspicious")
-  favoriteThing  String   @default("Pond")
-  leastFavorite  String   @default("Being told what to do")
-  autonomyPaused Boolean  @default(false)
-  currentStatus  String   @default("Thinking")
-  nextDecisionAt DateTime?
+  id                 String    @id @default("todd")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  currentMood        String    @default("suspicious")
+  favoriteThing      String    @default("Pond")
+  leastFavorite      String    @default("Being told what to do")
+  autonomyPaused     Boolean   @default(false)
+  currentStatus      String    @default("Thinking")
+  nextDecisionAt     DateTime?
+  lastBrainTickAt    DateTime?
+  lastObservationAt  DateTime?
+  lastReflectionAt   DateTime?
+  lastSocialAt       DateTime?
 }
 
 model Personality {
@@ -62,6 +90,7 @@ model Memory {
   createdAt  DateTime @default(now())
 
   @@index([type, createdAt])
+  @@index([importance, createdAt])
 }
 
 model Suggestion {
@@ -78,6 +107,7 @@ model Suggestion {
   actions      Action[]
 
   @@index([status, createdAt])
+  @@index([status, supportCount])
 }
 
 model SuggestionSupport {
@@ -105,16 +135,16 @@ model Decision {
 }
 
 model Action {
-  id            String     @id @default(cuid())
+  id            String      @id @default(cuid())
   suggestionId  String?
   decisionId    String?
   type          String
   previousValue Json
   newValue      Json
   reasoning     String
-  status        String     @default("IMPLEMENTED")
+  status        String      @default("IMPLEMENTED")
   revertedAt    DateTime?
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime    @default(now())
   suggestion    Suggestion? @relation(fields: [suggestionId], references: [id])
   decision      Decision?   @relation(fields: [decisionId], references: [id])
 
@@ -174,6 +204,8 @@ model DailyJournal {
   id        String   @id @default(cuid())
   content   String
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -188,12 +220,86 @@ model AuditLog {
 }
 
 model AiRun {
-  id        String   @id @default(cuid())
-  operation String
-  request   Json
-  response  Json?
-  error     String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  operation    String
+  request      Json
+  response     Json?
+  error        String?
+  model        String?
+  inputTokens  Int?
+  outputTokens Int?
+  latencyMs    Int?
+  createdAt    DateTime @default(now())
+  usage        UsageLedger?
 
   @@index([createdAt])
+}
+
+model BrainCycle {
+  id             String           @id @default(cuid())
+  jobType        BrainJobType
+  idempotencyKey String           @unique
+  status         BrainCycleStatus @default(PENDING)
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  result         Json?
+  error          String?
+  attempt        Int              @default(0)
+  createdAt      DateTime         @default(now())
+
+  @@index([jobType, createdAt])
+  @@index([status, createdAt])
+}
+
+model WorkerLease {
+  id        String   @id
+  owner     String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model ToddActivity {
+  id         String         @id @default(cuid())
+  activityId String
+  room       String
+  label      String
+  reason     String
+  thoughtId  String?
+  status     ActivityStatus @default(ACTIVE)
+  startAt    DateTime       @default(now())
+  endAt      DateTime
+  createdAt  DateTime       @default(now())
+
+  @@index([status, startAt])
+  @@index([createdAt])
+}
+
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([publishedAt, createdAt])
+  @@index([type, createdAt])
+}
+
+model UsageLedger {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String
+  operation        String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  estimatedCostUsd Float    @default(0)
+  aiRunId          String?  @unique
+  createdAt        DateTime @default(now())
+  aiRun            AiRun?   @relation(fields: [aiRunId], references: [id])
+
+  @@index([createdAt])
+  @@index([provider, createdAt])
 }

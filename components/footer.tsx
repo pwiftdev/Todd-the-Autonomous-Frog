@@ -23,6 +23,7 @@ export function Footer() {
           <div>
             <p className="eyebrow mb-5 text-[var(--lime)]">Explore the pond</p>
             <div className="grid gap-3 text-sm font-bold">
+              <Link href="/">Live watch</Link>
               <Link href="/suggestions">Suggestions</Link>
               <Link href="/thoughts">Thoughts</Link>
               <Link href="/changelog">Changelog</Link>
@@ -32,7 +33,7 @@ export function Footer() {
           <div>
             <p className="eyebrow mb-5 text-[var(--lime)]">Apply pressure</p>
             <Link
-              href="/suggestions"
+              href="/#pressure"
               className="button border-white/30 text-[#eff5d9]"
             >
               Suggest something
