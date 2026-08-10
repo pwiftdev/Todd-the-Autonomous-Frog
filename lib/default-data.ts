@@ -28,7 +28,6 @@ export const defaultToddData: ToddData = {
       "suggestions",
       "decisions",
       "changelog",
-      "social",
     ],
   } satisfies SiteConfigData,
   suggestions: [],

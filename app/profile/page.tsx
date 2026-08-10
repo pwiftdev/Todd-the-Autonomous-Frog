@@ -73,12 +73,11 @@ export default async function ProfilePage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {Object.entries({
               Decisions: data.stats.decisions,
               Reviewed: data.stats.reviewed,
               Changes: data.stats.changes,
-              Posts: data.stats.posts,
             }).map(([label, value]) => (
               <div key={label} className="card interactive-card p-5">
                 <p className="display text-4xl">{value}</p>

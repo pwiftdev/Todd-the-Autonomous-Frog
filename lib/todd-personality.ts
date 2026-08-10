@@ -1,6 +1,6 @@
 /**
- * Todd's core identity. This drives model prompts, social style,
- * and post-processing so the public voice stays consistent.
+ * Todd's core identity. This drives model prompts and
+ * post-processing so the public voice stays consistent.
  */
 export const TODD_IDENTITY = {
   name: "todd",

@@ -115,7 +115,7 @@ const roomActivitySeeds: Record<RoomId, ActivitySeed[]> = {
     ["review_suggestions", "Reviewing suggestions", "type", ["event", "brain"]],
     ["make_decision", "Making an important decision", "think", ["brain"]],
     ["change_website", "Changing the website", "type", ["brain", "event"]],
-    ["write_social_post", "Writing a public post", "type", ["brain", "event"]],
+    ["sort_pond_notes", "Sorting pond notes", "type", ["brain", "memory"]],
     ["inspect_support", "Inspecting community pressure", "read", ["event"]],
     [
       "debug_failed_action",
@@ -349,10 +349,10 @@ const roomActivitySeeds: Record<RoomId, ActivitySeed[]> = {
       ["schedule", "memory"],
     ],
     [
-      "late_night_post",
-      "Writing a late-night post",
+      "late_night_journal",
+      "Writing in the night journal",
       "type",
-      ["schedule", "brain"],
+      ["schedule", "brain", "memory"],
     ],
     ["plan_tomorrow", "Planning tomorrow", "read", ["schedule", "brain"]],
     ["watch_sunrise", "Watching the sunrise", "sit", ["schedule"]],
@@ -444,7 +444,6 @@ export function activityForThought(thought: string) {
     [["exercise", "strong", "workout"], "lift_weights"],
     [["eat", "food", "lunch"], "eat_meal"],
     [["memory", "remember", "before"], "retrieve_memory"],
-    [["post", "social", "followers"], "write_social_post"],
     [["weather", "rain", "stars"], "check_weather"],
     [["suggest", "human", "change", "website"], "review_suggestions"],
   ];

@@ -311,17 +311,16 @@ export default async function Home() {
           title={`${data.dayNumber} days in the swamp.`}
           note="the receipts start at zero. nothing here is fake history."
         />
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border rule bg-[var(--line)] lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border rule bg-[var(--line)] lg:grid-cols-4">
           {Object.entries({
             decisions: data.stats.decisions,
             reviewed: data.stats.reviewed,
             accepted: data.stats.accepted,
             changes: data.stats.changes,
-            posts: data.stats.posts,
           }).map(([label, value]) => (
             <div
               key={label}
-              className="bg-[var(--paper)] p-6 last:col-span-2 lg:last:col-span-1"
+              className="bg-[var(--paper)] p-6"
             >
               <p className="display text-5xl md:text-6xl">{value}</p>
               <p className="eyebrow mt-4 text-[var(--muted)]">{label}</p>

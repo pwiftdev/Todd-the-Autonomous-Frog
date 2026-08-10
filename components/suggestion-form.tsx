@@ -54,7 +54,7 @@ export function SuggestionForm({ compact = false }: { compact?: boolean }) {
                 defaultChecked={index === 0}
               />
               <span className="eyebrow inline-flex rounded-full border rule px-3 py-2 transition-colors peer-checked:border-[var(--ink)] peer-checked:bg-[var(--ink)] peer-checked:text-[var(--paper)]">
-                {category === "Social" ? "X / Social" : category}
+                {category}
               </span>
             </label>
           ))}

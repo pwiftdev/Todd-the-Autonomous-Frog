@@ -7,7 +7,6 @@ import { redirect } from "next/navigation";
 import {
   runDecisionCycle,
   runObservationCycle,
-  runSocialCycle,
   rollbackLatestConfig,
 } from "@/lib/autonomy";
 import { prisma } from "@/lib/prisma";
@@ -147,12 +146,6 @@ export async function toggleAutonomy() {
 export async function triggerDecision() {
   await requireAdmin();
   await runDecisionCycle();
-  revalidatePath("/", "layout");
-}
-
-export async function triggerSocial() {
-  await requireAdmin();
-  await runSocialCycle();
   revalidatePath("/", "layout");
 }
 

@@ -34,7 +34,6 @@ const foundation = {
       "suggestions",
       "decisions",
       "changelog",
-      "social",
     ],
   },
 };
@@ -227,28 +226,12 @@ export async function seedDemo() {
     });
   }
 
-  if ((await prisma.socialPost.count()) === 0) {
-    await prisma.socialPost.createMany({
-      data: [
-        {
-          content: "1,204 humans asked me to wear a crown. Fine.",
-          externalId: "mock_seed_1",
-        },
-        {
-          content: "The community wants democracy. Rejected.",
-          externalId: "mock_seed_2",
-          createdAt: new Date(Date.now() - 980 * 60000),
-        },
-      ],
-    });
-  }
-
   if ((await prisma.memory.count()) === 0) {
     await prisma.memory.createMany({
       data: [
         {
           type: "preference",
-          content: "Todd prefers short public posts.",
+          content: "Todd prefers short thoughts and weird pond vibes.",
           importance: 80,
         },
         {

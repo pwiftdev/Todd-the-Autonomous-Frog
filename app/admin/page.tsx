@@ -5,7 +5,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Send,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +15,6 @@ import {
   triggerBrainTick,
   triggerDecision,
   triggerObservation,
-  triggerSocial,
 } from "@/app/actions";
 import { isAdmin } from "@/lib/admin-auth";
 import { getActiveToddActivity } from "@/lib/activity";
@@ -97,7 +95,6 @@ export default async function AdminPage({
     { label: "Run brain tick", action: triggerBrainTick, icon: Brain },
     { label: "Run decision cycle", action: triggerDecision, icon: Sparkles },
     { label: "Run observation", action: triggerObservation, icon: Eye },
-    { label: "Run social cycle", action: triggerSocial, icon: Send },
     { label: "Rollback config", action: rollbackConfig, icon: RotateCcw },
   ];
   return (
@@ -130,7 +127,6 @@ export default async function AdminPage({
                 currentStatus: state.currentStatus,
                 activeConfigVersion: config.version,
                 provider: process.env.AI_PROVIDER ?? "mock",
-                socialProvider: process.env.SOCIAL_PROVIDER ?? "mock",
                 appMode: process.env.APP_MODE ?? "demo",
                 tokensUsedToday: tokens,
                 activity,

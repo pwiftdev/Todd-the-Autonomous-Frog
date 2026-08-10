@@ -47,7 +47,7 @@ export function SuggestionCard({
             {String((index ?? 0) + 1).padStart(2, "0")}
           </span>
           <span className="eyebrow text-[var(--muted)]">
-            {suggestion.category.replace("SOCIAL", "X / SOCIAL")}
+            {suggestion.category}
           </span>
         </div>
         <StatusPill status={suggestion.status} />

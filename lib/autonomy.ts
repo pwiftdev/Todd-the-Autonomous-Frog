@@ -9,10 +9,8 @@ import {
 } from "@/lib/activity";
 import { applyPersonalityDeltas, retrieveRelevantMemories } from "@/lib/memory";
 import { prisma } from "@/lib/prisma";
-import { socialProvider } from "@/lib/social/provider";
 import type { SiteConfigData } from "@/lib/types";
 import { assertWithinTokenBudget, recordAiUsage } from "@/lib/usage";
-import { getMaxSocialPostsPerDay } from "@/lib/config";
 import {
   sanitizeEvaluationAction,
   validateConfigValue,
@@ -262,13 +260,6 @@ export async function runDecisionCycle() {
       reasoningPublic: evaluation.reasoningPublic,
     });
 
-    if (["accept", "modify"].includes(evaluation.decision)) {
-      await enqueueOutbox("social.consider", {
-        event: evaluation.reasoningPublic,
-        suggestionId: suggestion.id,
-      });
-    }
-
     await prisma.toddState.update({
       where: { id: "todd" },
       data: {
@@ -362,95 +353,8 @@ export async function runObservationCycle() {
   }
 }
 
-export async function runSocialCycle(forcedEvent?: string) {
-  if (!process.env.DATABASE_URL) {
-    return { message: "Database unavailable." };
-  }
-  const state = await prisma.toddState.findUnique({ where: { id: "todd" } });
-  if (state?.autonomyPaused) throw new Error("Todd's autonomy is paused.");
-
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const postedToday = await prisma.socialPost.count({
-    where: { createdAt: { gte: start } },
-  });
-  if (postedToday >= getMaxSocialPostsPerDay()) {
-    return { message: "Social quota reached for today." };
-  }
-
-  const style = await prisma.socialStyle.findUnique({
-    where: { id: "social-style" },
-  });
-  const latest =
-    forcedEvent ??
-    (
-      await prisma.thought.findFirst({
-        orderBy: { createdAt: "desc" },
-      })
-    )?.content ??
-    "The pond is quiet.";
-
-  const run = await prisma.aiRun.create({
-    data: {
-      operation: "generateSocialPost",
-      request: { event: latest, style },
-    },
-  });
-
-  try {
-    const ai = await aiProvider.generateSocialPost(latest);
-    const content = toddVoice(ai.value, style?.maxLength ?? 160);
-
-    await prisma.aiRun.update({
-      where: { id: run.id },
-      data: {
-        response: { content },
-        model: ai.usage?.model,
-        inputTokens: ai.usage?.inputTokens,
-        outputTokens: ai.usage?.outputTokens,
-        latencyMs: ai.usage?.latencyMs,
-      },
-    });
-    await recordAiUsage({
-      operation: "generateSocialPost",
-      usage: ai.usage,
-      aiRunId: run.id,
-    });
-
-    const posted = await socialProvider.post(content);
-    await prisma.socialPost.create({
-      data: {
-        content,
-        provider: process.env.SOCIAL_PROVIDER ?? "mock",
-        externalId: posted.id,
-        status: process.env.X_LIVE === "1" ? "POSTED" : "POSTED",
-      },
-    });
-    await setToddActivity({
-      activityId: "write_social_post",
-      reason: content,
-    });
-    await prisma.toddState.update({
-      where: { id: "todd" },
-      data: { lastSocialAt: new Date() },
-    });
-    await enqueueOutbox("social.posted", { content, externalId: posted.id });
-    return { message: content };
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Social cycle failed";
-    await prisma.aiRun.update({ where: { id: run.id }, data: { error: message } });
-    await prisma.auditLog.create({
-      data: {
-        event: "SOCIAL_FAILED",
-        actor: "todd",
-        success: false,
-        metadata: { error: message },
-      },
-    });
-    // Social failure must not undo prior decisions.
-    return { message: `Social delivery failed: ${message}` };
-  }
+export async function runSocialCycle(_forcedEvent?: string) {
+  return { message: "Social posting is disabled." };
 }
 
 export async function runDailyReflection() {

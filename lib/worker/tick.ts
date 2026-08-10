@@ -4,7 +4,6 @@ import {
   runDecisionCycle,
   runMemoryMaintenance,
   runObservationCycle,
-  runSocialCycle,
 } from "@/lib/autonomy";
 import { publishOutboxBatch } from "@/lib/activity";
 import { prisma } from "@/lib/prisma";
@@ -102,27 +101,11 @@ export async function runBrainTick(owner = `tick_${process.pid}`) {
       );
     }
 
-    const socialDue = await prisma.outboxEvent.findFirst({
+    // Social posting is disabled; drain any leftover queue items quietly.
+    await prisma.outboxEvent.updateMany({
       where: { type: "social.consider", publishedAt: null },
-      orderBy: { createdAt: "asc" },
+      data: { publishedAt: new Date() },
     });
-    if (socialDue || minutesSince(state.lastSocialAt) >= 180) {
-      const payload = socialDue?.payload as { event?: string } | null;
-      jobs.push(
-        await runJob(
-          "SOCIAL",
-          `social:${dayBucket()}:${socialDue?.id ?? "scheduled"}`,
-          owner,
-          () => runSocialCycle(payload?.event),
-        ),
-      );
-      if (socialDue) {
-        await prisma.outboxEvent.update({
-          where: { id: socialDue.id },
-          data: { publishedAt: new Date(), attempts: { increment: 1 } },
-        });
-      }
-    }
 
     if (minutesSince(state.lastReflectionAt) >= 60 * 20) {
       jobs.push(
