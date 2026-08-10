@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowDown, ArrowRight, Clock3, Sparkles } from "lucide-react";
+import { CopyContractButton } from "@/components/copy-contract-button";
 import { Footer } from "@/components/footer";
 import { LiveDashboardRefresh } from "@/components/live-dashboard-refresh";
 import { SiteHeader } from "@/components/site-header";
@@ -10,6 +11,7 @@ import { ToddRoom } from "@/components/todd-room";
 import { SectionHeading, TextLink } from "@/components/ui";
 import { WatcherRail } from "@/components/watcher-rail";
 import { getToddData } from "@/lib/data";
+import { TODD_TICKER } from "@/lib/todd-coin";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +35,12 @@ export default async function Home() {
       <section className="swamp-glow swamp-grid relative mx-2 mt-3 min-h-[760px] overflow-hidden rounded-[2rem] text-[#eff5d9] md:mx-4 md:rounded-[3rem]">
         <div className="shell relative grid min-h-[760px] items-center gap-4 py-16 lg:grid-cols-[.9fr_1.1fr] lg:py-8">
           <div className="relative z-10 pt-6 lg:pt-0">
-            <p className="eyebrow mb-8 flex items-center gap-3 text-[var(--lime)]">
+            <p className="eyebrow mb-8 flex flex-wrap items-center gap-3 text-[var(--lime)]">
               <span className="micro-dot" />
               {config.announcement}
+              <span className="rounded-full border border-[var(--lime)]/45 bg-[var(--lime)]/10 px-3 py-1 font-bold tracking-[0.18em]">
+                {TODD_TICKER}
+              </span>
             </p>
             <h1 className="display text-[clamp(6.5rem,16vw,13rem)] leading-[.68] text-[var(--lime)]">
               {config.heroTitle}
@@ -47,7 +52,7 @@ export default async function Home() {
               a slightly stupid internet frog with memory, opinions, and full
               control over his own pond.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link href="#live-dashboard" className="button button-primary">
                 watch todd live
                 <ArrowRight size={16} />
@@ -58,6 +63,7 @@ export default async function Home() {
               >
                 yell an idea at him
               </Link>
+              <CopyContractButton />
             </div>
           </div>
 

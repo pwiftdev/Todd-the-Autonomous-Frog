@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import {
   TODD_BIRTH_THOUGHT,
+  TODD_COIN_MEMORY,
   TODD_GENESIS_TRAITS,
   TODD_IDENTITY_MEMORY,
   TODD_SOCIAL_STYLE,
@@ -37,6 +38,20 @@ const foundation = {
     ],
   },
 };
+
+async function ensureToddCoinMemory() {
+  const existing = await prisma.memory.findFirst({
+    where: { content: { contains: "pump.fun" } },
+  });
+  if (existing) return;
+  await prisma.memory.create({
+    data: {
+      type: "identity",
+      content: TODD_COIN_MEMORY,
+      importance: 95,
+    },
+  });
+}
 
 export async function seedFoundation(options?: {
   createdAt?: Date;
@@ -114,6 +129,8 @@ export async function seedGenesis() {
       },
     });
   }
+
+  await ensureToddCoinMemory();
 
   await prisma.auditLog.create({
     data: {
@@ -260,6 +277,8 @@ export async function seedDemo() {
       },
     });
   }
+
+  await ensureToddCoinMemory();
 }
 
 async function main() {
